@@ -75,7 +75,7 @@ sslHTTP.setHeader('Content-Type','application/json', function() {
 ```
 ### getCookies
 Get currently stored cookies. Internally, the plugin will store any cookie, passing it along with any request, but to javascript only cookies which do not have ``httpOnly`` flag will be available for reading. The plugin tries to follow the standard browser security settings when it comes to cookies.
-Cookies are not shared with the webview
+Cookies are not shared with the webview.
 ```
 sslHTTP.getCookies(domain, function(cookies) {
     console.log(cookies);
