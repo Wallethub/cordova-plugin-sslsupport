@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='utf-8'?>
+<plugin id="cordova-plugin-sslsupport" version="1.0.0" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+	<name>Cordova Plugin SSL Support</name>
+
+	<js-module name="CordovaPluginSslSupport" src="www/sslsupport.js">
+		<clobbers target="window.sslHTTP" />
+	</js-module>
+
+    <hook type="after_plugin_add" src="scripts/after_plugin_add.js" />
+
+    <platform name="android">
+        <config-file target="config.xml" parent="/*">
+            <feature name="CordovaPluginSslSupport">
+                <param name="android-package"value="com.wallethub.plugin.CordovaPluginSslSupport"/>
+            </feature>
+        </config-file>
+    
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-permission android:name="android.permission.INTERNET" />
+        </config-file>
+        
+        <framework src="src/android/plugin.gradle" custom="true" type="gradleReference"/>
+        <framework src="com.squareup.okhttp3:okhttp:3.9.0" />
+        <framework src="com.squareup.okhttp3:okhttp-urlconnection:3.9.0" />
+        
+        <source-file src="src/android/CordovaPluginSslSupport.java" target-dir="src/com/sslsupport/plugin" />
+        <source-file src="src/android/OkHttpUtils.java" target-dir="src/com/sslsupport/plugin" />
+    
+    </platform>
+
+	<platform name="ios">
+		<config-file parent="/*" target="config.xml">
+			<feature name="CordovaPluginSslSupport">
+				<param name="ios-package" value="CordovaPluginSslSupport" />
+			</feature>
+		</config-file>
+		<header-file src="src/ios/sslsupport.h" />
+        <source-file src="src/ios/sslsupport.m" />
+		<header-file src="src/ios/TextResponseSerializer.h" />
+		<source-file src="src/ios/TextResponseSerializer.m" />
+		<framework src="AFNetworking" type="podspec" spec="~> 3.1" />
+
+		<framework src="Foundation.framework" weak="true" />
+		<framework src="CFNetwork.framework" />
+		<framework src="Security.framework" />
+		<framework src="SystemConfiguration.framework" />
+	</platform>
+</plugin>
