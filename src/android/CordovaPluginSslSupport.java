@@ -339,8 +339,9 @@ activity = this.cordova.getActivity();
     Context context=activity.getApplicationContext();
     
 SharedPreferences sharedPreferences = context.getSharedPreferences("CookiePersistence", Context.MODE_PRIVATE);
-        List<Cookie> cookies = new ArrayList<>(sharedPreferences.getAll().size());
-        
+       // List<Cookie> cookies = new ArrayList<>(sharedPreferences.getAll().size());
+        List cookies = new ArrayList(sharedPreferences.getAll().size()); 
+
         for (Map.Entry<String, ?> entry : sharedPreferences.getAll().entrySet()) {
             String serializedCookie = (String) entry.getValue();
             Cookie cookie = new SerializableCookie().decode(serializedCookie);
