@@ -12,6 +12,7 @@
         <config-file target="config.xml" parent="/*">
             <feature name="CordovaPluginSslSupport">
                 <param name="android-package"value="com.wallethub.plugin.CordovaPluginSslSupport"/>
+                <param name="onload" value="true" />
             </feature>
         </config-file>
     

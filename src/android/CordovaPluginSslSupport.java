@@ -17,6 +17,9 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaWebView;
 
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+
 import org.apache.cordova.LOG;
 import org.apache.cordova.PluginEntry;
 import org.apache.cordova.PluginManager;
@@ -89,6 +92,8 @@ import okio.ByteString;
  * This class echoes a string called from JavaScript.
  */
 public class CordovaPluginSslSupport extends CordovaPlugin {
+
+public WebSettings settings;
 
 //Context context=this.cordova.getActivity().getApplicationContext(); 
 //ClearableCookieJar cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
@@ -257,12 +262,31 @@ catch (Exception e) {
     }
 
 //#######################Initialize
+
  public void initialize(final CordovaInterface cordova, final CordovaWebView webView) {
     super.initialize(cordova, webView);
-    
+     // try{
+
+     //            settings = ((WebView) webView.getEngine().getView()).getSettings();
+
+     //        }catch (Exception error){
+
+     //            settings = null;
+
+     //        }
+
     activity = cordova.getActivity();  
     Context context=activity.getApplicationContext();
     
+      try{
+                settings = ((WebView) webView.getEngine().getView()).getSettings();
+            }catch (Exception error){
+                //settings = null;
+                //if the above fails then use the one below
+                settings = new WebView(activity.getApplicationContext()).getSettings(); 
+            }
+    
+
     if(OKHTTPCLIENT_INIT == false){
     Log.e("SSLpinning", "OKHTTPCLIENT_INIT: Done");
     
@@ -503,12 +527,26 @@ if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
      SSL_PINNING_STATUS = true;            
 }
     
-    
+     try{
+    headersBuilder.set("User-Agent", settings.getUserAgentString()); //for user agent
+}
+     catch (Exception e)
+                {
+                    //xx.toString();
+                                retObj.put("data", "");
+                                retObj.put("httperrorcode", 0);
+                                retObj.put("errorcode", -1);
+                                retObj.put("errorinfo",e.getMessage());
+                                callbackContext.error(retObj);
+                }
+
             try{
             qdata = args.getJSONObject(1);
             headers = args.getJSONObject(2);
                 try  //lets iterate the headers object sent by the requesting function
                 {
+                 
+                    
                    Iterator<?> keys = headers.keys();
                     while (keys.hasNext())
                     {

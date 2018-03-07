@@ -14,6 +14,8 @@
     NSMutableDictionary *taskDictionary;
 
     AFHTTPSessionManager *manager;
+    UIWebView *sampleWebView;
+    NSString *UserAgent;
 }
 
 - (void)pluginInitialize {
@@ -25,6 +27,9 @@
     manager.securityPolicy = securityPolicy;
     arrayOfTasks = [[NSMutableArray alloc] init];
     taskDictionary = [NSMutableDictionary dictionary];
+    
+    sampleWebView = [[UIWebView alloc] initWithFrame:CGRectZero];
+    UserAgent = [sampleWebView stringByEvaluatingJavaScriptFromString:@"navigator.userAgent"];
 
     
     //    AFSecurityPolicy *policy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeCertificate];
@@ -44,6 +49,8 @@
         NSLog(@"%@", @"YES THIS IS FORM POST");
     }
     
+    [manager.requestSerializer setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
+    
     [manager.requestSerializer.HTTPRequestHeaders enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
         NSLog(@"%@ = %@", key, obj);
         if([obj isKindOfClass:[NSString class]])
@@ -59,6 +66,8 @@
             [manager.requestSerializer setValue:obj forHTTPHeaderField:key];
         }
     }];
+    
+    
 }
 
 
