@@ -670,10 +670,9 @@ useClient = httpclient;
             useClient.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                                e.printStackTrace();
-                                Log.e("SSLpINErroR", e.getMessage());
-                                
+                                //e.printStackTrace();
                                 try{
+                                Log.e("SSLpINErroR", e.getMessage());
                                 String errStr = e.getMessage();
                                 String err = errStr.toLowerCase();
                                 JSONObject erritems = new JSONObject();
@@ -718,7 +717,10 @@ useClient = httpclient;
                                 retObj.put("errorinfo",errStr);
                                 }catch(JSONException je){
                                     Log.e("Data object error", je.getMessage());
+                                }catch(Exception e){
+                                    Log.e("onFailure SSL error", e.getMessage());
                                 }
+
                                 callbackContext.error(retObj);
                                 //callbackContext.error(e.getMessage());
                 }
