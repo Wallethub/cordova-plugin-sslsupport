@@ -717,8 +717,8 @@ useClient = httpclient;
                                 retObj.put("errorinfo",errStr);
                                 }catch(JSONException je){
                                     Log.e("Data object error", je.getMessage());
-                                }catch(Exception e){
-                                    Log.e("onFailure SSL error", e.getMessage());
+                                }catch(Exception fe){
+                                    Log.e("onFailure SSL error", fe.getMessage());
                                 }
 
                                 callbackContext.error(retObj);
