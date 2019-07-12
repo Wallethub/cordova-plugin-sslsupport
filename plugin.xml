@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<plugin id="cordova-plugin-sslsupport" version="1.0.6" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<plugin id="cordova-plugin-sslsupport" version="1.0.7" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
 	<name>Cordova Plugin SSL Support</name>
 
 	<js-module name="CordovaPluginSslSupport" src="www/sslsupport.js">
@@ -11,7 +11,7 @@
     <platform name="android">
         <config-file target="config.xml" parent="/*">
             <feature name="CordovaPluginSslSupport">
-                <param name="android-package" value="com.wallethub.plugin.CordovaPluginSslSupport"/>
+                <param name="android-package" value="com.sslsupport.plugin.CordovaPluginSslSupport"/>
                 <param name="onload" value="true" />
             </feature>
         </config-file>
@@ -21,8 +21,8 @@
         </config-file>
         
         <framework src="src/android/plugin.gradle" custom="true" type="gradleReference"/>
-        <framework src="com.squareup.okhttp3:okhttp:3.9.0" />
-        <framework src="com.squareup.okhttp3:okhttp-urlconnection:3.9.0" />
+        <framework src="com.squareup.okhttp3:okhttp:3.14.2" />
+        <framework src="com.squareup.okhttp3:okhttp-urlconnection:3.14.2" />
         
         <source-file src="src/android/CordovaPluginSslSupport.java" target-dir="src/com/sslsupport/plugin" />
         <source-file src="src/android/OkHttpUtils.java" target-dir="src/com/sslsupport/plugin" />
@@ -39,7 +39,7 @@
         <source-file src="src/ios/sslsupport.m" />
 		<header-file src="src/ios/TextResponseSerializer.h" />
 		<source-file src="src/ios/TextResponseSerializer.m" />
-		<framework src="AFNetworking" type="podspec" spec="~> 3.1" />
+		<framework src="AFNetworking" type="podspec" spec="~> 3.2.1" />
 
 		<framework src="Foundation.framework" weak="true" />
 		<framework src="CFNetwork.framework" />

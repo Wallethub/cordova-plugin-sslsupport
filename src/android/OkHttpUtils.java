@@ -1,4 +1,4 @@
-package com.wallethub.plugin;
+package com.sslsupport.plugin;
 
 import okhttp3.Call;
 import okhttp3.OkHttpClient;

@@ -1,6 +1,6 @@
-package com.wallethub.plugin;
+package com.sslsupport.plugin;
 
-import com.wallethub.plugin.OkHttpUtils;
+import com.sslsupport.plugin.OkHttpUtils;
 
 import android.os.Bundle;
 import android.content.Context;
@@ -129,7 +129,7 @@ public CertificatePinner getPinnedHashes() {
                     String [] vals = val.split(",");
                     for(int i=0;i<vals.length;i++){
                         builder.add(key, "sha256/" + vals[i]);
-                        Log.e("SSLpinning", key + "=" + "sha256/" + vals[i]);
+                        Log.i("SSLpinning", key + "=" + "sha256/" + vals[i]);
                     }
                 }
         } 
@@ -288,7 +288,7 @@ catch (Exception e) {
     
 
     if(OKHTTPCLIENT_INIT == false){
-    Log.e("SSLpinning", "OKHTTPCLIENT_INIT: Done");
+    Log.i("SSLpinning", "OKHTTPCLIENT_INIT: Done");
     
        cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
           httpclient = httpclient.newBuilder()
@@ -433,7 +433,7 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                             InputStream certInputStream = context.getAssets().open("certificates/"  + name);
                             BufferedInputStream bis = new BufferedInputStream(certInputStream);
                             CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-                            Log.e("SSLpinning", "FOUND-PEM: " + name +  " for domain: " + domainname);
+                            Log.i("SSLpinning", "FOUND-PEM: " + name +  " for domain: " + domainname);
                             while (bis.available() > 0) {
                                 Certificate cert = certificateFactory.generateCertificate(bis);
                                 keyStore.setCertificateEntry(domainname, cert);
@@ -445,7 +445,7 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                             InputStream certInputStream = context.getAssets().open("certificates/"  + name);
                             BufferedInputStream bis = new BufferedInputStream(certInputStream);
                             CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-                            Log.e("SSLpinning", "FOUND-CER: " + name +  " for domain: " + domainname);
+                            Log.i("SSLpinning", "FOUND-CER: " + name +  " for domain: " + domainname);
                             while (bis.available() > 0) {
                                 Certificate cert = certificateFactory.generateCertificate(bis);
                                 //doGenerate256(cert); //trying to generate sha256 here
@@ -455,7 +455,7 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                             }
                     }
                     else{
-                        Log.e("SSLpinning", "getPEMdomain: not pem");
+                        Log.i("SSLpinning", "getPEMdomain: not pem");
                     }
             }            
 
@@ -482,7 +482,7 @@ private String doGenerate256(String domainname, Certificate certificate){
       throw new IllegalArgumentException("Certificate pinning requires X509 certificates");
     }
     String sha =  "sha256/" + sha256((X509Certificate) certificate).base64();
-    Log.e("SSLpinning", "SHAgenerated!! : " +sha + " for domain: " + domainname);
+    Log.i("SSLpinning", "SHAgenerated!! : " +sha + " for domain: " + domainname);
     return sha;
 }
 
@@ -600,19 +600,19 @@ if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
                       wildcarddomainname += "." + arr[i];
                     }
             }
-            Log.e("SSLpinning", "WILDCARDDomain: " + wildcarddomainname);
+            Log.i("SSLpinning", "WILDCARDDomain: " + wildcarddomainname);
             
             if (domainlist.contains(domainname)) {
                     securedomain = true;
-                    Log.e("SSLpinning", "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
+                    Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
             }
             else if (domainlist.contains(wildcarddomainname)) {
                     securedomain = true;
-                    Log.e("SSLpinning", "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
+                    Log.i("SSLpinning", "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
             }
             else{
                     securedomain = false;
-                    Log.e("SSLpinning", "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
+                    Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
             }
 
 if(action.equals("post"))
@@ -634,7 +634,7 @@ if(action.equals("post"))
                 formBody = formBuilder.build();
                 //## post parameters done
             }
-            Log.e("SSLpinning", "POSTasJSON: " + isjson);
+            Log.i("SSLpinning", "POSTasJSON: " + isjson);
             
             newurl = url;
             request = new Request.Builder().url(newurl).headers(headersBuilder.build()).post(formBody).tag(urlkey).build();
