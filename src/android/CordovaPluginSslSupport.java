@@ -552,7 +552,7 @@ if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
                     {
                         String key = (String) keys.next();
                         String value = headers.getString(key);
-                        if(key.toLowerCase() == "content-type" && value.toLowerCase().contains("json")) {
+                        if(key.toLowerCase().contains("content-type") && value.toLowerCase().contains("json")) {
                            isjson = true;
                         }
                         headersBuilder.set(key, value);
