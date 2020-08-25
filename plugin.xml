@@ -42,10 +42,10 @@
 
         <podspec>
             <config>
-                <source url="https://github.com/CocoaPods/Specs.git"/>
+                <source url="https://cdn.cocoapods.org"/>
             </config>
             <pods use-frameworks="true">
-                <pod name="AFNetworking" spec="~> 3.2.1" />
+                <pod name="AFNetworking" spec="~> 4.0" />
             </pods>
         </podspec>
         

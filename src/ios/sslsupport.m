@@ -23,7 +23,7 @@
     securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];
     securityPolicy.allowInvalidCertificates = NO;
     manager = [AFHTTPSessionManager manager];
-    manager.responseSerializer = [TextResponseSerializer serializer];
+    // manager.responseSerializer = [TextResponseSerializer serializer];
     manager.securityPolicy = securityPolicy;
     arrayOfTasks = [[NSMutableArray alloc] init];
     taskDictionary = [NSMutableDictionary dictionary];
@@ -55,7 +55,7 @@
         NSLog(@"%@ = %@", key, obj);
         if([obj isKindOfClass:[NSString class]])
         {
-            [manager.requestSerializer setValue:obj forHTTPHeaderField:key];    
+            [manager.requestSerializer setValue:obj forHTTPHeaderField:key];
         }
         
     }];
@@ -452,9 +452,9 @@
 }
 
 - (void)post:(CDVInvokedUrlCommand*)command {
-    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-    manager.responseSerializer = [TextResponseSerializer serializer];
-    manager.securityPolicy = securityPolicy;
+//   AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+//   manager.responseSerializer = [TextResponseSerializer serializer];
+//   manager.securityPolicy = securityPolicy;
     
     NSString *URL = [command.arguments objectAtIndex:0];
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
@@ -475,7 +475,7 @@
         // ...
     }
     
-    NSURLSessionDataTask *task = [manager POST:URL parameters:parameters progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
+    NSURLSessionDataTask *task = [manager POST:URL parameters:parameters headers:nil progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
         //NSLog(@"JSON: %@", responseObject);
         //NSLog(@"%@", operation.response);
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
@@ -563,13 +563,9 @@
         [[taskDictionary objectForKey:URLkey] cancel];
         [taskDictionary removeObjectForKey:URLkey];
     }
-    else
-    {
-        // ...
-    }
 
     
-    NSURLSessionDataTask *task = [manager GET:URL parameters:parameters progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
+    NSURLSessionDataTask *task = [manager GET:URL parameters:parameters headers:nil progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
 //        NSLog(@"JSON: %@", responseObject);
 //        NSLog(@"%@", operation.response);
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
@@ -632,6 +628,101 @@
     
     
     
+}
+
+
+- (void)download:(CDVInvokedUrlCommand*)command {
+//    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+//    manager.responseSerializer = [TextResponseSerializer serializer];
+//    manager.securityPolicy = securityPolicy;
+    
+    NSURL *URL = [NSURL URLWithString:[command.arguments objectAtIndex:0]];
+    NSURLRequest *request = [NSURLRequest requestWithURL:URL];
+
+    NSDictionary *headers = [command.arguments objectAtIndex:1];
+    [self setRequestHeaders: headers forManager: manager];
+    
+    NSString *URLkey = [command.arguments objectAtIndex:2];
+    
+    CordovaPluginSslSupport* __weak weakSelf = self;
+
+
+    if ([taskDictionary objectForKey:URLkey]) {
+        // key exists.
+        NSLog(@"ArrCancelled: %@", URLkey);
+        [[taskDictionary objectForKey:URLkey] cancel];
+        [taskDictionary removeObjectForKey:URLkey];
+    }
+
+    [manager setDownloadTaskDidWriteDataBlock:^(NSURLSession *session, NSURLSessionDownloadTask *downloadTask, int64_t bytesWritten, int64_t totalBytesWritten, int64_t totalBytesExpectedToWrite) {
+        //Convert totalBytesWritten and totalBytesExpectedToWrite into floats so that percentageCompleted doesn't get rounded to the nearest integer
+        CGFloat written = totalBytesWritten;
+        CGFloat total = totalBytesExpectedToWrite;
+        NSNumber *percentageCompleted = [NSNumber numberWithFloat:written/total];
+
+        NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+        [dictionary setObject:percentageCompleted] forKey:@"progress"];
+        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
+
+        [pluginResult setKeepCallbackAsBool:true];
+        [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        
+    }];
+    
+    NSURLSessionDownloadTask *downloadTask = [manager downloadTaskWithRequest:request progress:nil destination:^NSURL *(NSURL *targetPath, NSURLResponse *response) {
+        //Getting the path of the document directory
+        NSURL *documentsDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSDocumentDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:NO error:nil];
+        NSURL *fullURL = [documentsDirectoryURL URLByAppendingPathComponent:[response suggestedFilename]];
+        //full url path of file
+        return fullURL;
+    } completionHandler:^(NSURLResponse *response, NSURL *filePath, NSError *error) {
+        if(error) {
+            NSLog(@"Error Localized desc: %@", error.localizedDescription);
+            NSLog(@"Error code: %ld", [error code]);
+            NSHTTPURLResponse *response = error.userInfo[AFNetworkingOperationFailingURLResponseErrorKey];
+            NSLog(@"Error Resp: %@", [self getErrStr:error.code]);
+    
+            NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+            [dictionary setObject:[error domain] forKey:@"errordomain"];
+            [dictionary setObject:[NSNumber numberWithInt:[error code]] forKey:@"errorcode"];
+            //for no internet
+            if([error code] == -1009){
+                [dictionary setObject:[NSNumber numberWithInt:-10] forKey:@"errorcode"];
+            }
+            
+            if(response == nil){
+                [dictionary setObject:[NSNumber numberWithInt:0] forKey:@"httperrorcode"];
+                [dictionary setObject:@"" forKey:@"data"];
+
+            } else {
+                NSString* ErrorResponse = [[NSString alloc] initWithData:(NSData *)error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey] encoding:NSUTF8StringEncoding];
+                [dictionary setObject:ErrorResponse forKey:@"data"];
+                [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"httperrorcode"];
+                [dictionary setObject:[response allHeaderFields] forKey:@"headers"];
+            }
+            
+            [dictionary setObject:error.localizedDescription forKey:@"errorinfo"];
+            
+            [dictionary setObject:[self getErrStr:error.code] forKey:@"errordomain"];
+            
+            
+            
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:dictionary];
+            [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            
+        } else {
+            NSLog(@"File downloaded to: %@", filePath);
+
+            NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+            [dictionary setObject:[filePath absoluteString]] forKey:@"url"];
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
+            [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        }
+    }];
+
+    [taskDictionary setObject:downloadTask forKey:URLkey];
+    
+    [downloadTask resume];
 }
 
 

@@ -134,6 +134,28 @@ var http = {
             if (failure) failure(request);
         }, "CordovaPluginSslSupport", "get", [url, data, headers, urlkey]);
     },
+
+    download: function(params, success, failure) {
+        var urlkey = uniqid(),
+            url = "",
+            headers = {};
+
+        if(params.id)  urlkey = params.id;
+        if(params.url) url = params.url;
+        if(params.headers) headers = params.headers;
+
+        currentUrlId = urlkey;
+
+        exec(function (response) {
+            if (success) success(response);
+
+        }, function (request) {
+            if (failure) failure(request);
+
+        }, "CordovaPluginSslSupport", "download", [url, header,currentUrlId]);
+
+    },
+
     cancelRequest: function (urlkey, success, failure) {
         if (!urlkey) { urlkey = currentUrlId; }
 

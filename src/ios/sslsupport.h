@@ -9,6 +9,7 @@
 - (void)setHeader:(CDVInvokedUrlCommand*)command;
 - (void)post:(CDVInvokedUrlCommand*)command;
 - (void)get:(CDVInvokedUrlCommand*)command;
+- (void)download:(CDVInvokedUrlCommand*)command;
 - (void)cancelRequest:(CDVInvokedUrlCommand*)command;
 
 @end
