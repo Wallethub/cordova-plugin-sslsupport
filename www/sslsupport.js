@@ -144,6 +144,9 @@ var http = {
         if(params.url) url = params.url;
         if(params.headers) headers = params.headers;
 
+        var dest = null;
+        if(params.dest) dest = params.dest;
+
         currentUrlId = urlkey;
 
         exec(function (response) {
@@ -152,7 +155,7 @@ var http = {
         }, function (request) {
             if (failure) failure(request);
 
-        }, "CordovaPluginSslSupport", "download", [url, header,currentUrlId]);
+        }, "CordovaPluginSslSupport", "download", [url,dest, headers,currentUrlId]);
 
     },
 
@@ -166,6 +169,12 @@ var http = {
         }, "CordovaPluginSslSupport", "cancelRequest", [urlkey]);
     }
 };
+
+exec(function(){
+
+},function(){
+
+},"CordovaPluginSslSupport","setUserAgent",[navigator.userAgent]);
 
 module.exports = http;
 window.sslHTTP = http;

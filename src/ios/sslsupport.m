@@ -12,9 +12,9 @@
     AFSecurityPolicy *securityPolicy;
     NSMutableArray *arrayOfTasks;
     NSMutableDictionary *taskDictionary;
-
+    
     AFHTTPSessionManager *manager;
-    UIWebView *sampleWebView;
+    // UIWebView *sampleWebView;
     NSString *UserAgent;
 }
 
@@ -22,19 +22,22 @@
     requestSerializer = [AFHTTPRequestSerializer serializer];
     securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];
     securityPolicy.allowInvalidCertificates = NO;
-    manager = [AFHTTPSessionManager manager];
-    // manager.responseSerializer = [TextResponseSerializer serializer];
+    
+    manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[ NSURL URLWithString:@"https://example.com" ]];
+
+    manager.responseSerializer = [TextResponseSerializer serializer];
     manager.securityPolicy = securityPolicy;
     arrayOfTasks = [[NSMutableArray alloc] init];
     taskDictionary = [NSMutableDictionary dictionary];
     
-    sampleWebView = [[UIWebView alloc] initWithFrame:CGRectZero];
-    UserAgent = [sampleWebView stringByEvaluatingJavaScriptFromString:@"navigator.userAgent"];
+    // sampleWebView = [[UIWebView alloc] initWithFrame:CGRectZero];
+    // UserAgent = [sampleWebView stringByEvaluatingJavaScriptFromString:@"navigator.userAgent"];
+}
 
-    
-    //    AFSecurityPolicy *policy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeCertificate];
-    //    NSData *localCertificate = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"my" ofType:@"cer"]];
-    //    securityPolicy.pinnedCertificates = [[NSSet alloc] initWithObjects:localCertificate, nil];
+-(void)setUserAgent:(CDVInvokedUrlCommand*)command {
+    UserAgent = [command.arguments objectAtIndex:0];
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (void)setRequestHeaders:(NSDictionary*)headers forManager:(AFHTTPSessionManager*)manager {
@@ -43,13 +46,12 @@
     NSString *contentType = [headers objectForKey:@"Content-Type"];
     if([contentType rangeOfString:@"json"].location != NSNotFound) {  //application/json
         manager.requestSerializer = [AFJSONRequestSerializer serializer];
-        NSLog(@"%@", @"YES THIS IS JSON");
-    } else {
-        manager.requestSerializer = [AFHTTPRequestSerializer serializer];
-        NSLog(@"%@", @"YES THIS IS FORM POST");
+        NSLog(@"%@", @"JSON BODY POST");
     }
     
-    [manager.requestSerializer setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
+    if(UserAgent != nil) {
+        [manager.requestSerializer setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
+    }
     
     [manager.requestSerializer.HTTPRequestHeaders enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
         NSLog(@"%@ = %@", key, obj);
@@ -342,31 +344,15 @@
 - (void)enableSSLPinning:(CDVInvokedUrlCommand*)command {
     bool enable = [[command.arguments objectAtIndex:0] boolValue];
     if (enable) {
-        securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeCertificate];
-        securityPolicy.allowInvalidCertificates = YES;
-        securityPolicy.validatesDomainName = NO;
-        
-        //securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModePublicKey];
-//        NSData *localCertificate = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"" ofType:@"cer" inDirectory:@"www/certificates"]];
-//        securityPolicy.pinnedCertificates = [[NSSet alloc] initWithObjects:localCertificate, nil];
+        securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModePublicKey];
+        securityPolicy.allowInvalidCertificates = NO;
+        securityPolicy.validatesDomainName = YES;
+
     } else {
         securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];
     }
-    
-    NSString *certPathName = [[NSBundle mainBundle] bundlePath];
-//    NSString *certPathName = [appPathName stringByAppendingPathComponent:@"www/certificates"];
-    NSError * error;
-    NSArray * directoryContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:certPathName error:&error];
-    NSLog(@"%@", certPathName);
-    
-    if(error != nil){
-        NSLog(@"Error Localized desc: %@", error.localizedDescription);
-        NSLog(@"Error domain: %@", [error domain]);
-        NSLog(@"Error code: %ld", [error code]);
-        //        NSLog(@"Error: %@", error);
-    }else{
-        NSLog(@"%@", directoryContents);
-    }
+
+    manager.securityPolicy = securityPolicy;
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -377,6 +363,7 @@
     bool allow = [[command.arguments objectAtIndex:0] boolValue];
     
     securityPolicy.allowInvalidCertificates = allow;
+    manager.securityPolicy = securityPolicy;
     
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -387,6 +374,7 @@
     bool validate = [[command.arguments objectAtIndex:0] boolValue];
     
     securityPolicy.validatesDomainName = validate;
+    manager.securityPolicy = securityPolicy;
     
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -452,9 +440,6 @@
 }
 
 - (void)post:(CDVInvokedUrlCommand*)command {
-//   AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-//   manager.responseSerializer = [TextResponseSerializer serializer];
-//   manager.securityPolicy = securityPolicy;
     
     NSString *URL = [command.arguments objectAtIndex:0];
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
@@ -543,9 +528,6 @@
 
 
 - (void)get:(CDVInvokedUrlCommand*)command {
-//    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-//    manager.responseSerializer = [TextResponseSerializer serializer];
-//    manager.securityPolicy = securityPolicy;
     
     NSString *URL = [command.arguments objectAtIndex:0];
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
@@ -632,18 +614,18 @@
 
 
 - (void)download:(CDVInvokedUrlCommand*)command {
-//    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-//    manager.responseSerializer = [TextResponseSerializer serializer];
-//    manager.securityPolicy = securityPolicy;
     
     NSURL *URL = [NSURL URLWithString:[command.arguments objectAtIndex:0]];
     NSURLRequest *request = [NSURLRequest requestWithURL:URL];
 
-    NSDictionary *headers = [command.arguments objectAtIndex:1];
+    NSString *destination = [command.arguments objectAtIndex:1];
+
+    NSDictionary *headers = [command.arguments objectAtIndex:2];
     [self setRequestHeaders: headers forManager: manager];
     
-    NSString *URLkey = [command.arguments objectAtIndex:2];
-    
+    NSString *URLkey = [command.arguments objectAtIndex:3];
+
+
     CordovaPluginSslSupport* __weak weakSelf = self;
 
 
@@ -661,7 +643,7 @@
         NSNumber *percentageCompleted = [NSNumber numberWithFloat:written/total];
 
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
-        [dictionary setObject:percentageCompleted] forKey:@"progress"];
+        [dictionary setObject:percentageCompleted forKey:@"progress"];
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
 
         [pluginResult setKeepCallbackAsBool:true];
@@ -673,6 +655,9 @@
         //Getting the path of the document directory
         NSURL *documentsDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSDocumentDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:NO error:nil];
         NSURL *fullURL = [documentsDirectoryURL URLByAppendingPathComponent:[response suggestedFilename]];
+        if(destination && destination != nil) {
+            return [NSURL URLWithString:destination];
+        }
         //full url path of file
         return fullURL;
     } completionHandler:^(NSURLResponse *response, NSURL *filePath, NSError *error) {
@@ -712,9 +697,10 @@
             
         } else {
             NSLog(@"File downloaded to: %@", filePath);
-
+            
             NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
-            [dictionary setObject:[filePath absoluteString]] forKey:@"url"];
+            [dictionary setObject:[filePath absoluteString] forKey:@"url"];
+
             CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
             [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
         }
@@ -747,4 +733,3 @@
 
 
 @end
-
