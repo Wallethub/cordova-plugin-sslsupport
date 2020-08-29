@@ -17,6 +17,7 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaWebView;
 
+import android.webkit.URLUtil;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
@@ -44,8 +45,9 @@ import java.io.File;
 import okhttp3.*;
 import com.franmontiel.persistentcookiejar.*; //for persistentcookiejar
 import com.franmontiel.persistentcookiejar.cache.*; 
-import com.franmontiel.persistentcookiejar.persistence.*; 
+import com.franmontiel.persistentcookiejar.persistence.*;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -83,7 +85,12 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import okio.Buffer;
+import okio.BufferedSource;
 import okio.ByteString;
+import okio.ForwardingSource;
+import okio.Okio;
+import okio.Source;
 
 
 //import com.wallethub.plugin.OkHttpCertPin;
@@ -93,88 +100,134 @@ import okio.ByteString;
  */
 public class CordovaPluginSslSupport extends CordovaPlugin {
 
-public WebSettings settings;
+    private static class ProgressResponseBody extends ResponseBody {
 
-//Context context=this.cordova.getActivity().getApplicationContext(); 
-//ClearableCookieJar cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
-//private PersistentCookieJar persistentCookieJar;
- CallbackContext PUBLIC_CALLBACKS = null;
+        private final ResponseBody responseBody;
+        private final ProgressListener progressListener;
+        private BufferedSource bufferedSource;
 
-ClearableCookieJar cookieJar;
+        final JSONObject retObj = new JSONObject();
 
-Activity activity;
-ApplicationInfo appliInfo = null;
-
-Boolean SSL_PINNING_STATUS = false; //flag to know whether the certificates have been pinned or not
-Boolean SSL_PINNING_STOP = false; //force stop pinning, and remove cert pinner
-Boolean OKHTTPCLIENT_INIT = false;
-
-String newurl = "";
-CookieManager cookieManager = new CookieManager(null, ACCEPT_ORIGINAL_SERVER);
-//cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
-
-public CertificatePinner getPinnedHashes() {
-    CertificatePinner.Builder builder = new CertificatePinner.Builder();
-    Activity activity = this.cordova.getActivity(); 
-        try {
-            appliInfo = activity.getPackageManager().getApplicationInfo(activity.getPackageName(), PackageManager.GET_META_DATA);
-        } catch (NameNotFoundException e) {
-            Log.e("SSLpinning", "NameNotFoundException+" + e.getMessage());
+        ProgressResponseBody(ResponseBody responseBody, ProgressListener progressListener) {
+            this.responseBody = responseBody;
+            this.progressListener = progressListener;
         }
-        Bundle bundle = appliInfo.metaData;
-        try {
-                
-                for (String key : bundle.keySet()) {
-                    String val = bundle.get(key).toString();
-                    String [] vals = val.split(",");
-                    for(int i=0;i<vals.length;i++){
-                        builder.add(key, "sha256/" + vals[i]);
-                        Log.i("SSLpinning", key + "=" + "sha256/" + vals[i]);
-                    }
+
+        @Override public MediaType contentType() {
+            return responseBody.contentType();
+        }
+
+        @Override public long contentLength() {
+            return responseBody.contentLength();
+        }
+
+        @Override public BufferedSource source() {
+            if (bufferedSource == null) {
+                bufferedSource = Okio.buffer(source(responseBody.source()));
+            }
+            return bufferedSource;
+        }
+
+        private Source source(Source source) {
+            return new ForwardingSource(source) {
+                long totalBytesRead = 0L;
+
+                @Override public long read(Buffer sink, long byteCount) throws IOException {
+                    long bytesRead = super.read(sink, byteCount);
+                    // read() returns the number of bytes read, or -1 if this source is exhausted.
+                    totalBytesRead += bytesRead != -1 ? bytesRead : 0;
+                    progressListener.update(totalBytesRead, responseBody.contentLength(), bytesRead == -1);
+                    return bytesRead;
                 }
-        } 
-        catch (IllegalArgumentException e) {
-      //do something
-                Log.e("SSLpinning", "IllegalArgumentException+" + e.getMessage());
+            };
         }
-        catch (Exception e) {
+    }
+
+    interface ProgressListener {
+        void update(long bytesRead, long contentLength, boolean done);
+    }
+
+    public WebSettings settings;
+
+    //Context context=this.cordova.getActivity().getApplicationContext();
+    //ClearableCookieJar cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
+    //private PersistentCookieJar persistentCookieJar;
+     CallbackContext PUBLIC_CALLBACKS = null;
+
+    ClearableCookieJar cookieJar;
+
+    Activity activity;
+    ApplicationInfo appliInfo = null;
+
+    Boolean SSL_PINNING_STATUS = false; //flag to know whether the certificates have been pinned or not
+    Boolean SSL_PINNING_STOP = false; //force stop pinning, and remove cert pinner
+    Boolean OKHTTPCLIENT_INIT = false;
+
+    String newurl = "";
+    CookieManager cookieManager = new CookieManager(null, ACCEPT_ORIGINAL_SERVER);
+    //cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
+
+    public CertificatePinner getPinnedHashes() {
+        CertificatePinner.Builder builder = new CertificatePinner.Builder();
+        Activity activity = this.cordova.getActivity();
+            try {
+                appliInfo = activity.getPackageManager().getApplicationInfo(activity.getPackageName(), PackageManager.GET_META_DATA);
+            } catch (NameNotFoundException e) {
+                Log.e("SSLpinning", "NameNotFoundException+" + e.getMessage());
+            }
+            Bundle bundle = appliInfo.metaData;
+            try {
+
+                    for (String key : bundle.keySet()) {
+                        String val = bundle.get(key).toString();
+                        String [] vals = val.split(",");
+                        for(int i=0;i<vals.length;i++){
+                            builder.add(key, "sha256/" + vals[i]);
+                            Log.i("SSLpinning", key + "=" + "sha256/" + vals[i]);
+                        }
+                    }
+            }
+            catch (IllegalArgumentException e) {
+          //do something
+                    Log.e("SSLpinning", "IllegalArgumentException+" + e.getMessage());
+            }
+            catch (Exception e) {
+                //do something
+                Log.e("SSLpinning", "Exception+" +e.getMessage());
+            }
+
+        return builder.build();
+    }
+
+    OkHttpClient client = getOkHttpClient(); //new OkHttpClient();
+    //OkHttpClient client = new OkHttpClient.Builder().build();
+    OkHttpClient httpclient = getOkHttpClient();
+
+    ArrayList<String> domainlist = new ArrayList<String>(); //saves all secure domains
+
+
+    public OkHttpClient getOkHttpClient() {
+
+        try {
+
+
+            OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                    //.certificatePinner(certPinner)
+                    //.certificatePinner(getPinnedHashes()) // we will do it during the get or post calls, since activity is not available
+                    //.cookieJar(new JavaNetCookieJar(cookieManager))
+                    //.cookieJar(cookieJar)
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .writeTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .build();
+            return okHttpClient;
+        } catch (Exception e) {
             //do something
-            Log.e("SSLpinning", "Exception+" +e.getMessage());
+            Log.e("SSLpinning", "getclientException+" + e.getMessage());
         }
-    
-    return builder.build();
-}
-        
-OkHttpClient client = getOkHttpClient(); //new OkHttpClient();
-//OkHttpClient client = new OkHttpClient.Builder().build();
-OkHttpClient httpclient = getOkHttpClient();
 
-ArrayList<String> domainlist = new ArrayList<String>(); //saves all secure domains
-
-
-public OkHttpClient getOkHttpClient()  {        
-
-try{
-
-
-OkHttpClient okHttpClient = new OkHttpClient.Builder()
-    //.certificatePinner(certPinner)
-    //.certificatePinner(getPinnedHashes()) // we will do it during the get or post calls, since activity is not available
-    //.cookieJar(new JavaNetCookieJar(cookieManager))
-    //.cookieJar(cookieJar)
-    .connectTimeout(10,TimeUnit.SECONDS)
-    .writeTimeout(10,TimeUnit.SECONDS)
-    .readTimeout(30,TimeUnit.SECONDS)
-    .build();
-    return okHttpClient;
+        return new OkHttpClient();
     }
-catch (Exception e) {
-        //do something
-        Log.e("SSLpinning", "getclientException+" +e.getMessage());
-    }
-    
-    return new OkHttpClient();
-}
 
 //######################Main Execute function
     @Override
@@ -184,7 +237,7 @@ catch (Exception e) {
 
     JSONObject retObj = new JSONObject();
     
-        if(action.equals("get") || action.equals("post")) {
+        if(action.equals("get") || action.equals("post") || action.equals("download")) {
         try{
             try{
                 this.getpostMethod(action, args, callbackContext);
@@ -492,302 +545,342 @@ private ByteString sha256(X509Certificate x509Certificate) {
 //########### get/post function, the 1st variable is "get" or "post"
 private void getpostMethod(String action, JSONArray args, final CallbackContext callbackContext) throws JSONException {
 
-//url : "https://www.google.co.in/search",
-//data : {q: "check+data", oq: "check+data"},
-//headers : {}, urlkey : "google"
+    //url : "https://www.google.co.in/search",
+    //data : {q: "check+data", oq: "check+data"},
+    //headers : {}, urlkey : "google"
 
-String url = args.getString(0);
-String urlkey = "default";
-JSONObject qdata = new JSONObject();
-JSONObject headers = new JSONObject();
-Boolean securedomain = false;
-Boolean isjson = false;
-OkHttpClient useClient;
+    String url = args.getString(0);
+    String urlkey = "default";
+    JSONObject qdata = new JSONObject();
+    JSONObject headers = new JSONObject();
+    String dest = "";
+    Boolean securedomain = false;
+    Boolean isjson = false;
+    OkHttpClient useClient;
 
-final JSONObject retObj = new JSONObject();
-Headers.Builder headersBuilder = new Headers.Builder();  
-final RequestBody formBody;
-
-
-Request request;
+    final JSONObject retObj = new JSONObject();
+    Headers.Builder headersBuilder = new Headers.Builder();
+    final RequestBody formBody;
 
 
-if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
-{
+    Request request;
 
-         try{
-                doSSLpinningTrustManager(args, callbackContext);
-            }catch (NullPointerException e)
-            {
-                callbackContext.error(e.getMessage());
-            } catch(Exception e) {
-                callbackContext.error(e.getMessage());
+
+    if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
+    {
+        try {
+            doSSLpinningTrustManager(args, callbackContext);
+        }catch (NullPointerException e) {
+            callbackContext.error(e.getMessage());
+        } catch(Exception e) {
+            callbackContext.error(e.getMessage());
+        }
+
+        SSL_PINNING_STATUS = true;
+    }
+
+    try {
+        headersBuilder.set("User-Agent", settings.getUserAgentString()); //for user agent
+    } catch (Exception e) {
+        retObj.put("data", "");
+        retObj.put("httperrorcode", 0);
+        retObj.put("errorcode", -1);
+        retObj.put("errorinfo",e.getMessage());
+        callbackContext.error(retObj);
+    }
+
+    try {
+
+        if (action.equals("download") == false) qdata = args.getJSONObject(1);
+        else dest = args.getString(1);
+
+        headers = args.getJSONObject(2);
+
+        try  //lets iterate the headers object sent by the requesting function
+        {
+
+
+            Iterator<?> keys = headers.keys();
+            while (keys.hasNext()) {
+                String key = (String) keys.next();
+                String value = headers.getString(key);
+                if (key.toLowerCase().contains("content-type") && value.toLowerCase().contains("json")) {
+                    isjson = true;
+                }
+                headersBuilder.set(key, value);
             }
-    
-     SSL_PINNING_STATUS = true;            
-}
-    
-     try{
-    headersBuilder.set("User-Agent", settings.getUserAgentString()); //for user agent
-}
-     catch (Exception e)
-                {
-                    //xx.toString();
-                                retObj.put("data", "");
-                                retObj.put("httperrorcode", 0);
-                                retObj.put("errorcode", -1);
-                                retObj.put("errorinfo",e.getMessage());
-                                callbackContext.error(retObj);
-                }
-
-            try{
-            qdata = args.getJSONObject(1);
-            headers = args.getJSONObject(2);
-                try  //lets iterate the headers object sent by the requesting function
-                {
-                 
-                    
-                   Iterator<?> keys = headers.keys();
-                    while (keys.hasNext())
-                    {
-                        String key = (String) keys.next();
-                        String value = headers.getString(key);
-                        if(key.toLowerCase().contains("content-type") && value.toLowerCase().contains("json")) {
-                           isjson = true;
-                        }
-                        headersBuilder.set(key, value);
-                    }
-                }
-                catch (Exception e)
-                {
-                    //xx.toString();
-                                retObj.put("data", "");
-                                retObj.put("httperrorcode", 0);
-                                retObj.put("errorcode", -1);
-                                retObj.put("errorinfo",e.getMessage());
-                                callbackContext.error(retObj);
-                }
-            }
-            catch(JSONException e){
-            Log.e("DataObjecterror", e.getMessage());
+        } catch (Exception e) {
+            //xx.toString();
             retObj.put("data", "");
             retObj.put("httperrorcode", 0);
-            retObj.put("errorcode", 0);
-            retObj.put("errorinfo",e.getMessage());
+            retObj.put("errorcode", -1);
+            retObj.put("errorinfo", e.getMessage());
             callbackContext.error(retObj);
-            }
-            
-            
+        }
 
-        if (url != null && url.length() > 0) 
-        {
-        try{
-        
+    } catch (JSONException e) {
+        Log.e("DataObjecterror", e.getMessage());
+        retObj.put("data", "");
+        retObj.put("httperrorcode", 0);
+        retObj.put("errorcode", 0);
+        retObj.put("errorinfo", e.getMessage());
+        callbackContext.error(retObj);
+    }
+
+
+    if (url != null && url.length() > 0) {
+        try {
+
             urlkey = args.getString(3);
-            
+
             String domainname = HttpUrl.parse(url).host();
             String wildcarddomainname = HttpUrl.parse(url).host();
-            
-            String [] arr = domainname.split("\\.");
-            if(arr.length == 2)//just a common case of wildcard domain supporting the root as well
+
+            String[] arr = domainname.split("\\.");
+            if (arr.length == 2)//just a common case of wildcard domain supporting the root as well
             {
-                wildcarddomainname = "*." + arr[0] + '.' +  arr[1]; 
-            }
-            else if(arr.length > 2)
-            {
-                wildcarddomainname = "*"; 
-                for(int i=1;i<arr.length;i++){
-                      wildcarddomainname += "." + arr[i];
-                    }
+                wildcarddomainname = "*." + arr[0] + '.' + arr[1];
+            } else if (arr.length > 2) {
+                wildcarddomainname = "*";
+                for (int i = 1; i < arr.length; i++) {
+                    wildcarddomainname += "." + arr[i];
+                }
             }
             Log.i("SSLpinning", "WILDCARDDomain: " + wildcarddomainname);
-            
-            if (domainlist.contains(domainname)) {
-                    securedomain = true;
-                    Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
-            }
-            else if (domainlist.contains(wildcarddomainname)) {
-                    securedomain = true;
-                    Log.i("SSLpinning", "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
-            }
-            else{
-                    securedomain = false;
-                    Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
-            }
 
-if(action.equals("post"))
-{
-            if(isjson)
-            {
-                MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-                formBody = RequestBody.create(JSON, qdata.toString());
+            if (domainlist.contains(domainname)) {
+                securedomain = true;
+                Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
+            } else if (domainlist.contains(wildcarddomainname)) {
+                securedomain = true;
+                Log.i("SSLpinning", "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
+            } else {
+                securedomain = false;
+                Log.i("SSLpinning", "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
             }
-            else
-            {
-                //## adding the post parameters
-                FormBody.Builder formBuilder = new FormBody.Builder();
-                Iterator<?> keys = qdata.keys();
-                while( keys.hasNext() ) {
-                    String key = (String)keys.next();
-                    formBuilder.add(key, qdata.getString(key));
+// POST
+            if (action.equals("post")) {
+                if (isjson) {
+                    MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+                    formBody = RequestBody.create(JSON, qdata.toString());
+                } else {
+                    //## adding the post parameters
+                    FormBody.Builder formBuilder = new FormBody.Builder();
+                    Iterator<?> keys = qdata.keys();
+                    while (keys.hasNext()) {
+                        String key = (String) keys.next();
+                        formBuilder.add(key, qdata.getString(key));
+                    }
+                    formBody = formBuilder.build();
+                    //## post parameters done
                 }
-                formBody = formBuilder.build();
-                //## post parameters done
-            }
-            Log.i("SSLpinning", "POSTasJSON: " + isjson);
-            
-            newurl = url;
-            request = new Request.Builder().url(newurl).headers(headersBuilder.build()).post(formBody).tag(urlkey).build();
-            
-}
-else
-{
+                Log.i("SSLpinning", "POSTasJSON: " + isjson);
+
+                newurl = url;
+                request = new Request.Builder().url(newurl).headers(headersBuilder.build()).post(formBody).tag(urlkey).build();
+
+            } else {
+
                 //## adding the query parameters
                 HttpUrl.Builder httpBuider = HttpUrl.parse(url).newBuilder();
                 Iterator<?> keys = qdata.keys();
-                while( keys.hasNext() ) {
-                    String key = (String)keys.next();
+                while (keys.hasNext()) {
+                    String key = (String) keys.next();
                     httpBuider.addQueryParameter(key, qdata.getString(key));
                 }
-                
-                newurl = httpBuider.build().toString();
-                //## query params done
-            request = new Request.Builder().url(newurl).headers(headersBuilder.build()).tag(urlkey).build();
-            
-}
 
-if(securedomain == true)
-{
-useClient = client;
-}
-else
-{
-useClient = httpclient;
-}
+                newurl = httpBuider.build().toString();
+                request = new Request.Builder().url(newurl).headers(headersBuilder.build()).tag(urlkey).build();
+            }
+
+            if (securedomain == true) {
+                useClient = client;
+            } else {
+                useClient = httpclient;
+            }
+            // for a download request add progress listener
+            if(action.equals("download")) {
+                final ProgressListener progressListener = new ProgressListener() {
+                    @Override
+                    public void update(long bytesRead, long contentLength, boolean done) {
+                        final JSONObject retObj = new JSONObject();
+                        try {
+                            if (done) {
+
+                            } else {
+
+                                if (contentLength != -1) {
+                                    long progress = (100 * bytesRead) / contentLength;
+
+                                    Log.i("SSLpinning", String.valueOf(progress));
+
+                                    retObj.put("progress", progress);
+                                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, retObj);
+                                    pluginResult.setKeepCallback(true);
+
+                                    callbackContext.sendPluginResult(pluginResult);
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e("SSLGETErroR", e.getMessage());
+                        }
+                    }
+                };
+
+                useClient = useClient.newBuilder()
+                        .addNetworkInterceptor(new Interceptor() {
+                            @Override public Response intercept(Chain chain) throws IOException {
+                                Response originalResponse = chain.proceed(chain.request());
+                                return originalResponse.newBuilder()
+                                        .body(new ProgressResponseBody(originalResponse.body(), progressListener))
+                                        .build();
+                            }
+                        }).build();
+            }
 
             OkHttpUtils.cancelCallWithTag(useClient, urlkey);
-            
+
+            String finalDest = dest != null && dest.length() > 1 ? dest : (String.valueOf(cordova.getContext().getFilesDir()) + URLUtil.guessFileName(url,null,null) );
+
             useClient.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                                //e.printStackTrace();
-                                try{
-                                Log.e("SSLpINErroR", e.getMessage());
-                                String errStr = e.getMessage();
-                                String err = errStr.toLowerCase();
-                                JSONObject erritems = new JSONObject();
-                                
-                                erritems.put("err-1202", "CertPathValidatorException");
-                                erritems.put("err-1205", "Certificate pinning failure");
-                                //erritems.put("err-1003", "No address associated with hostname");
-                                erritems.put("err-1001", "failed to connect");
-                                erritems.put("err-10", "No address associated with hostname"); //no internet
-                                //erritems.put("err-10", "failed to connect"); //no internet
-                                erritems.put("err-999", "Canceled"); //navigation cancelled by the app by triggering the unique key method
+                    //e.printStackTrace();
+                    try {
+                        Log.e("SSLpINErroR", e.getMessage());
+                        String errStr = e.getMessage();
+                        String err = errStr.toLowerCase();
+                        JSONObject erritems = new JSONObject();
 
-                                retObj.put("data", "");
-                                retObj.put("httperrorcode", 0);
-                                retObj.put("errorcode", -1);
-                                
-                                int myNum = 0;
+                        erritems.put("err-1202", "CertPathValidatorException");
+                        erritems.put("err-1205", "Certificate pinning failure");
+                        //erritems.put("err-1003", "No address associated with hostname");
+                        erritems.put("err-1001", "failed to connect");
+                        erritems.put("err-10", "No address associated with hostname"); //no internet
+                        //erritems.put("err-10", "failed to connect"); //no internet
+                        erritems.put("err-999", "Canceled"); //navigation cancelled by the app by triggering the unique key method
+
+                        retObj.put("data", "");
+                        retObj.put("httperrorcode", 0);
+                        retObj.put("errorcode", -1);
+
+                        int myNum = 0;
 
 
-
-                                Iterator<String> iter = erritems.keys();
-                                while (iter.hasNext()) {
-                                    String key = iter.next();
+                        Iterator<String> iter = erritems.keys();
+                        while (iter.hasNext()) {
+                            String key = iter.next();
+                            try {
+                                String val = erritems.get(key).toString();
+                                if (err.contains(val.toLowerCase())) {
                                     try {
-                                        String val = erritems.get(key).toString();
-                                        if(err.contains(val.toLowerCase()))
-                                        {
-                                            try {
-                                                myNum = Integer.parseInt(key.replaceAll("err", ""));
-                                                retObj.put("errorcode", myNum);
-                                                    } catch(NumberFormatException nfe) {
-                                                System.out.println("Could not parse " + nfe);
-                                                } 
-                                        //retObj.put("errorcode", key.replaceAll("err", ""));
-                                        break;
-                                        }
-                                    } catch (JSONException ee) {
-                                        // Something went wrong!
+                                        myNum = Integer.parseInt(key.replaceAll("err", ""));
+                                        retObj.put("errorcode", myNum);
+                                    } catch (NumberFormatException nfe) {
+                                        System.out.println("Could not parse " + nfe);
                                     }
+                                    //retObj.put("errorcode", key.replaceAll("err", ""));
+                                    break;
                                 }
-                                
-                                retObj.put("errorinfo",errStr);
-                                }catch(JSONException je){
-                                    Log.e("Data object error", je.getMessage());
-                                }catch(Exception fe){
-                                    Log.e("onFailure SSL error", fe.getMessage());
-                                }
+                            } catch (JSONException ee) {
+                                // Something went wrong!
+                            }
+                        }
 
-                                callbackContext.error(retObj);
-                                //callbackContext.error(e.getMessage());
+                        retObj.put("errorinfo", errStr);
+                    } catch (JSONException je) {
+                        Log.e("Data object error", je.getMessage());
+                    } catch (Exception fe) {
+                        Log.e("onFailure SSL error", fe.getMessage());
+                    }
+
+                    callbackContext.error(retObj);
+                    //callbackContext.error(e.getMessage());
                 }
 
                 @Override
                 public void onResponse(Call call, final Response response) throws IOException {
-                        JSONObject jsonCookies = new JSONObject();
-                        try{
- 
+                    try {
+
                         JSONObject jsonHeaders = new JSONObject();
 
                         Headers responseHeaders = response.headers();
-                          for (int i = 0; i < responseHeaders.size(); i++) {
+                        for (int i = 0; i < responseHeaders.size(); i++) {
                             jsonHeaders.put(responseHeaders.name(i).toString(), responseHeaders.value(i));
-                          }
+                        }
 
-                        retObj.put("data", response.body().string());
+
                         retObj.put("headers", jsonHeaders);
-                        
-                        if(response.isSuccessful())
-                        {
-                        retObj.put("status", response.code());
-                        callbackContext.success(retObj);
+
+                        if (response.isSuccessful()) {
+                            if(action.equals("download")) {
+
+                                FileOutputStream fos = new FileOutputStream(finalDest);
+                                fos.write(response.body().bytes());
+                                fos.close();
+                                retObj.put("url", finalDest);
+
+                            } else {
+                                retObj.put("data", response.body().string());
+                            }
+
+                            retObj.put("status", response.code());
+                            callbackContext.success(retObj);
+
+                        } else {
+                            retObj.put("data", response.body().string());
+
+                            retObj.put("httperrorcode", response.code());
+
+                            if (response.code() >= 400 && response.code() <= 600) {
+                                retObj.put("errorcode", -1011);
+                            } else {
+                                retObj.put("errorcode", response.code());
+                            }
+
+                            retObj.put("errorinfo", response.toString());
+
+                            callbackContext.error(retObj);
                         }
-                        else
-                        {
-                        retObj.put("httperrorcode", response.code());
-                        //retObj.put("errorinfo", response.message()); //response.toString()  //message is empty always!
-                        retObj.put("errorcode", response.code());
-                            
-                            if(response.code() >= 400 && response.code() <= 600){retObj.put("errorcode", -1011);}
-                        
-                        retObj.put("errorinfo", response.toString()); //response.toString()
-                        callbackContext.error(retObj);
-                        }
-                    }catch(JSONException e){
+                    } catch (JSONException e) {
                         Log.e("DataobjectError", e.getMessage());
-                                callbackContext.error("DataObjectErrN"+ e.getMessage());
-                        
+                        callbackContext.error("DataObjectErrN" + e.getMessage());
+
+                    } catch (Exception e) {
+                        Log.e("SSLGETErroR", e.getMessage());
+
+                        try {
+                            retObj.put("data", "");
+                            retObj.put("httperrorcode", 0);
+                            retObj.put("errorcode", 1203);
+                            retObj.put("errorinfo", e.getMessage());
+                        } catch (JSONException ex) { }
+
+                        callbackContext.error(retObj);
                     }
-                        
+
                 }
             });
-            
-            
-            
-            }
-            catch (Exception e) {
-                    //do something
-                    Log.e("SSLGETErroR", e.getMessage());
-                    retObj.put("data", "");
-                                retObj.put("httperrorcode", 0);
-                                retObj.put("errorcode", 1203);
-                                retObj.put("errorinfo",e.getMessage());
-                                callbackContext.error(retObj);
-                    //callbackContext.error(e.getMessage());
-            }
-        } 
-        else 
-        {
-                                retObj.put("data", "");
-                                retObj.put("httperrorcode", 0);
-                                retObj.put("errorcode", -1);
-                                retObj.put("errorinfo","Incorrect url parameter");
-                                callbackContext.error(retObj);
-            //callbackContext.error("Some problems with the url parameter");
+
+
+        } catch (Exception e) {
+            //do something
+            Log.e("SSLGETErroR", e.getMessage());
+            retObj.put("data", "");
+            retObj.put("httperrorcode", 0);
+            retObj.put("errorcode", 1203);
+            retObj.put("errorinfo", e.getMessage());
+            callbackContext.error(retObj);
+            //callbackContext.error(e.getMessage());
         }
+    } else {
+        retObj.put("data", "");
+        retObj.put("httperrorcode", 0);
+        retObj.put("errorcode", -1);
+        retObj.put("errorinfo", "Incorrect url parameter");
+        callbackContext.error(retObj);
+        //callbackContext.error("Some problems with the url parameter");
+    }
 }
 
 //###############

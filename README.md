@@ -64,15 +64,6 @@ sslHTTP.validateDomainName(true, function() {
     console.log('error :(');
 });
 ```
-### setHeader - iOS only
-Set a gobal header to be used with any request.
-```
-sslHTTP.setHeader('Content-Type','application/json', function() {
-    console.log('success!');
-}, function() {
-    console.log('error :(');
-});
-```
 ### getCookies
 Get currently stored cookies. Internally, the plugin will store any cookie, passing it along with any request, but to javascript only cookies which do not have ``httpOnly`` flag will be available for reading. The plugin tries to follow the standard browser security settings when it comes to cookies.
 Cookies are not shared with the webview.
