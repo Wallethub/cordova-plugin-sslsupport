@@ -808,13 +808,12 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                         for (int i = 0; i < responseHeaders.size(); i++) {
                             jsonHeaders.put(responseHeaders.name(i).toString(), responseHeaders.value(i));
                         }
-
-
+                        
                         retObj.put("headers", jsonHeaders);
-
+                        
                         if (response.isSuccessful()) {
                             if(action.equals("download")) {
-
+                                Log.i("SSLpinning","File downloaded: " + finalDest);
                                 FileOutputStream fos = new FileOutputStream(finalDest);
                                 fos.write(response.body().bytes());
                                 fos.close();
