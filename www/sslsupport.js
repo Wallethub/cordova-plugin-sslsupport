@@ -81,9 +81,6 @@ var http = {
             if (failure) failure();
         }, "CordovaPluginSslSupport", "validateDomainName", [validate]);
     },
-    setHeader: function (header, value, success, failure) {
-        return exec(success, failure, "CordovaPluginSslSupport", "setHeader", [header, value]);
-    },
     getCookies: function (params, success, failure) {
         var domain = typeof params == "string" ? (params || "all") : "all";
         return exec(success, failure, "CordovaPluginSslSupport", "getCookies", [domain]);

@@ -16,6 +16,10 @@
     AFHTTPSessionManager *manager;
     // UIWebView *sampleWebView;
     NSString *UserAgent;
+    
+    BOOL pinning;
+    
+    NSMutableArray *pinnedDomains;
 }
 
 - (void)pluginInitialize {
@@ -23,15 +27,53 @@
     securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];
     securityPolicy.allowInvalidCertificates = NO;
     
-    manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[ NSURL URLWithString:@"https://example.com" ]];
-
-    manager.responseSerializer = [TextResponseSerializer serializer];
-    manager.securityPolicy = securityPolicy;
     arrayOfTasks = [[NSMutableArray alloc] init];
     taskDictionary = [NSMutableDictionary dictionary];
     
-    // sampleWebView = [[UIWebView alloc] initWithFrame:CGRectZero];
-    // UserAgent = [sampleWebView stringByEvaluatingJavaScriptFromString:@"navigator.userAgent"];
+    pinning = YES;
+    
+    pinnedDomains = [[NSMutableArray alloc] init];
+    
+    NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
+    NSDirectoryEnumerator *dirEnum = [[NSFileManager defaultManager] enumeratorAtPath:bundlePath];
+
+    NSString *file;
+    NSString *fname;
+    while (file = [dirEnum nextObject]) {
+        if ([[file pathExtension] isEqualToString: @"cer"]) {
+            fname = [[file lastPathComponent] stringByDeletingPathExtension];
+            [pinnedDomains addObject:fname];
+        }
+    }
+    
+}
+
+- (AFHTTPSessionManager*)getManager:(NSString*) URL {
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.securityPolicy = securityPolicy;
+    
+    if(pinning == YES && pinnedDomains != nil && sizeof(pinnedDomains) > 0) {
+        NSURL *aURL =  [NSURL URLWithString:URL];
+        NSURL *hostURL = [[NSURL URLWithString:@"/" relativeToURL:aURL] absoluteURL];
+        NSString *host = [hostURL absoluteString];
+        host = [host substringToIndex:[host length]-1];
+        
+        for (NSString* domain in pinnedDomains)
+        {
+            if([host containsString:domain]) {
+                manager = [[AFHTTPSessionManager alloc] initWithBaseURL:[ NSURL URLWithString:host ]];
+                manager.securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeCertificate];
+                manager.securityPolicy.allowInvalidCertificates = NO;
+                manager.securityPolicy.validatesDomainName = YES;
+                NSLog(@"Activated pinning for: %@",domain);
+                break;
+            }
+        }
+    }
+    
+    manager.responseSerializer = [TextResponseSerializer serializer];
+    
+    return manager;
 }
 
 -(void)setUserAgent:(CDVInvokedUrlCommand*)command {
@@ -71,9 +113,6 @@
     
     
 }
-
-
-
 
 - (void)setHeader:(CDVInvokedUrlCommand*)command {
     NSString *header = [command.arguments objectAtIndex:0];
@@ -342,17 +381,7 @@
 }
 
 - (void)enableSSLPinning:(CDVInvokedUrlCommand*)command {
-    bool enable = [[command.arguments objectAtIndex:0] boolValue];
-    if (enable) {
-        securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModePublicKey];
-        securityPolicy.allowInvalidCertificates = NO;
-        securityPolicy.validatesDomainName = YES;
-
-    } else {
-        securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeNone];
-    }
-
-    manager.securityPolicy = securityPolicy;
+    pinning = [command.arguments objectAtIndex:0];
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -360,10 +389,9 @@
 
 - (void)acceptAllCerts:(CDVInvokedUrlCommand*)command {
     CDVPluginResult* pluginResult = nil;
+
     bool allow = [[command.arguments objectAtIndex:0] boolValue];
-    
     securityPolicy.allowInvalidCertificates = allow;
-    manager.securityPolicy = securityPolicy;
     
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -371,10 +399,9 @@
 
 - (void)validateDomainName:(CDVInvokedUrlCommand*)command {
     CDVPluginResult* pluginResult = nil;
+
     bool validate = [[command.arguments objectAtIndex:0] boolValue];
-    
     securityPolicy.validatesDomainName = validate;
-    manager.securityPolicy = securityPolicy;
     
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -439,12 +466,16 @@
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
+
 - (void)post:(CDVInvokedUrlCommand*)command {
     
     NSString *URL = [command.arguments objectAtIndex:0];
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
     NSDictionary *headers = [command.arguments objectAtIndex:2];
     NSString *URLkey = [command.arguments objectAtIndex:3];
+    
+    AFHTTPSessionManager *manager = [self getManager:URL];
+    
     [self setRequestHeaders: headers forManager: manager];
     
     CordovaPluginSslSupport* __weak weakSelf = self;
@@ -479,7 +510,6 @@
         //NSLog(@"%@", dictionary);
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
         [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-        
         
     } failure:^(NSURLSessionTask *operation, NSError *error) {
         NSLog(@"Error Localized desc: %@", error.localizedDescription);
@@ -520,8 +550,7 @@
         
     }];
     
-      // add the task to our arrayOfTasks
-//    [arrayOfTasks addObject:task];
+    // add the task to our arrayOfTasks
     [taskDictionary setObject:task forKey:URLkey];
 
 }
@@ -533,11 +562,12 @@
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
     NSDictionary *headers = [command.arguments objectAtIndex:2];
     NSString *URLkey = [command.arguments objectAtIndex:3];
+    
+    AFHTTPSessionManager *manager = [self getManager:URL];
+    
     [self setRequestHeaders: headers forManager: manager];
     
     CordovaPluginSslSupport* __weak weakSelf = self;
-    
-//    NSLog(@"ARRlength: %@", [arrayOfTasks count]);
     
     if ([taskDictionary objectForKey:URLkey]) {
         // key exists.
@@ -548,8 +578,7 @@
 
     
     NSURLSessionDataTask *task = [manager GET:URL parameters:parameters headers:nil progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
-//        NSLog(@"JSON: %@", responseObject);
-//        NSLog(@"%@", operation.response);
+
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
         
         NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:[response allHeaderFields] forURL:[response URL]];
@@ -563,7 +592,6 @@
         }
         [dictionary setObject:[response allHeaderFields] forKey:@"headers"];
         
-//        NSLog(@"%@", dictionary);
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
         [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
         
@@ -605,29 +633,24 @@
     }];
     
     // add the task to our arrayOfTasks
-//    [arrayOfTasks addObject:task];
     [taskDictionary setObject:task forKey:URLkey];
-    
-    
-    
 }
 
 
 - (void)download:(CDVInvokedUrlCommand*)command {
     
-    NSURL *URL = [NSURL URLWithString:[command.arguments objectAtIndex:0]];
+    NSString *urlstring = [command.arguments objectAtIndex:0];
+    NSURL *URL = [NSURL URLWithString:urlstring];
     NSURLRequest *request = [NSURLRequest requestWithURL:URL];
-
     NSString *destination = [command.arguments objectAtIndex:1];
-
     NSDictionary *headers = [command.arguments objectAtIndex:2];
+    NSString *URLkey = [command.arguments objectAtIndex:3];
+    
+    AFHTTPSessionManager *manager = [self getManager:urlstring];
+    
     [self setRequestHeaders: headers forManager: manager];
     
-    NSString *URLkey = [command.arguments objectAtIndex:3];
-
-
     CordovaPluginSslSupport* __weak weakSelf = self;
-
 
     if ([taskDictionary objectForKey:URLkey]) {
         // key exists.
