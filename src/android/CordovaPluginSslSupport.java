@@ -710,9 +710,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                             } else {
 
                                 if (contentLength != -1) {
-                                    long progress = (100 * bytesRead) / contentLength;
-
-                                    Log.i("SSLpinning", String.valueOf(progress));
+                                    double progress = ((100 * (double) bytesRead) / (double) contentLength) / 100;
 
                                     retObj.put("progress", progress);
                                     PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, retObj);
@@ -726,7 +724,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                         }
                     }
                 };
-
+                Log.i("SSLpinning", "create download client");
                 useClient = useClient.newBuilder()
                         .addNetworkInterceptor(new Interceptor() {
                             @Override public Response intercept(Chain chain) throws IOException {
@@ -740,7 +738,9 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
 
             OkHttpUtils.cancelCallWithTag(useClient, urlkey);
 
-            String finalDest = dest != null && dest.length() > 1 ? dest : (String.valueOf(cordova.getContext().getFilesDir()) + URLUtil.guessFileName(url,null,null) );
+            String finalDest =
+                    dest != null && dest.length() > 1 && dest != "null" ? dest :
+                            cordova.getContext().getFilesDir().toString() + "/" + URLUtil.guessFileName(request.url().toString(),null,null);
 
             useClient.newCall(request).enqueue(new Callback() {
                 @Override
@@ -808,12 +808,11 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                         for (int i = 0; i < responseHeaders.size(); i++) {
                             jsonHeaders.put(responseHeaders.name(i).toString(), responseHeaders.value(i));
                         }
-                        
+
                         retObj.put("headers", jsonHeaders);
-                        
+
                         if (response.isSuccessful()) {
                             if(action.equals("download")) {
-                                Log.i("SSLpinning","File downloaded: " + finalDest);
                                 FileOutputStream fos = new FileOutputStream(finalDest);
                                 fos.write(response.body().bytes());
                                 fos.close();

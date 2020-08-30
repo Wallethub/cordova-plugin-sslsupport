@@ -66,7 +66,6 @@
                 manager.securityPolicy.allowInvalidCertificates = NO;
                 manager.securityPolicy.validatesDomainName = YES;
                 NSLog(@"Activated pinning for: %@",domain);
-                break;
             }
         }
     }
@@ -678,7 +677,7 @@
         //Getting the path of the document directory
         NSURL *documentsDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSDocumentDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:NO error:nil];
         NSURL *fullURL = [documentsDirectoryURL URLByAppendingPathComponent:[response suggestedFilename]];
-        if(destination && destination != nil) {
+        if(destination && destination != NULL && destination != nil && destination != (id)[NSNull null]) {
             return [NSURL URLWithString:destination];
         }
         //full url path of file

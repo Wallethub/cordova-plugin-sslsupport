@@ -92,10 +92,16 @@ var http = {
         if (params.hasOwnProperty("data")) { data = params.data || {} }
         if (params.hasOwnProperty("headers")) { headers = params.headers || {} }
         if (params.id) { urlkey = params.id; }
+
+        if(headers["Content-Type"] && headers["Content-Type"] == "application/json" && typeof data == "string") {
+            try {
+                data = JSON.parse(data);
+            } catch(e) {}
+        }
         
         var validate = validateParams({ url:url,headers:headers,data:data });
         if(validate.failed) {
-            if(failed) failure(validate.details);
+            failure(validate.details);
             return;
         }
 
@@ -119,7 +125,7 @@ var http = {
 
         var validate = validateParams({ url:url,headers:headers,data:data });
         if(validate.failed) {
-            if(failed) failure(validate.details);
+            failure(validate.details);
             return;
         }
 
