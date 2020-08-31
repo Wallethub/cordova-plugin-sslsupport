@@ -1,5 +1,20 @@
 # cordova-plugin-sslsupport
 > Cordova HTTP plugin with SSL Pinning for iOS (AFnetworking) and Android (OKhttp3)
+# Breaking changes between 1.0.x and 1.1.x
+- removed setHeader method, used in iOS for setting global headers
+- for a more effective ssl pinning and flexibility of making requests that rely on system's certificates, iOS now required `target` attribute on certificate resources, similar to Android:
+previously (for iOS):
+```
+<resource-file src="certificates/somecertificate.cer" />
+```
+now (for iOS):
+```
+<resource-file src="certificates/somecertificate.cer" target="certificates/example.com.cer" />
+```
+Take not that this setting will be active for subdomains also. If you have different certificates for the subdomain, specify the subdomain as target for your certificate:
+```
+<resource-file src="certificates/subdomaincert.cer" target="certificates/subdomain.example.com.cer" />
+```
 # About
 This plugin provides the ability to make http requests using native code which brings several advantages over the webview XMLHttpRequest
 # Main Advantages
@@ -24,7 +39,7 @@ sslHTTP.enableSSLPinning(true, function() {
 In order for pinning to work you must provide certificates and domain in `config.xml`:
 ```
 <platform name="ios">
-    <resource-file src="certificates/somecertificate.cer" />
+    <resource-file src="certificates/somecertificate.cer" target="certificates/domain.cer" />
     ....
 </platform>
 ....
@@ -82,6 +97,28 @@ The success callback recevies the following object:
 }
 ```
 
+### New in 1.1 - download
+Perform a DOWNLOAD request
+```
+sslHTTP.download(params,function(response){
+    console.log(response);
+},function(error){
+    console.log(error);
+})
+```
+Where ``params`` is an object:
+```
+{
+    ur: string,
+    destination : string, // optional
+    headers: {[key:string]:string}
+}
+```
+And ``response`` is :
+```
+{ progress : number , url :string  }
+```
+Response will give progress as a range between 0 and 1 and will only provide value for `url` once download is completed. `url` represents the absolute path where the file has been downloaded.
 ### post
 Perform a POST request.
 ```
