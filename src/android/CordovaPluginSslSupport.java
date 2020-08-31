@@ -86,6 +86,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import okio.Buffer;
+import okio.BufferedSink;
 import okio.BufferedSource;
 import okio.ByteString;
 import okio.ForwardingSource;
@@ -813,9 +814,15 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
 
                         if (response.isSuccessful()) {
                             if(action.equals("download")) {
-                                FileOutputStream fos = new FileOutputStream(finalDest);
-                                fos.write(response.body().bytes());
-                                fos.close();
+                                File file = new File(new URI(finalDest));
+                                file.createNewFile();
+                                BufferedSink sink = Okio.buffer(Okio.sink(file));
+                                // you can access body of response
+                                sink.writeAll(response.body().source());
+                                sink.close();
+
+                                Log.i("SSLpinning", "File downloaded to: "+ finalDest);
+
                                 retObj.put("url", finalDest);
 
                             } else {
