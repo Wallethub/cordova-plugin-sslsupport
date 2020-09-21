@@ -721,7 +721,8 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                                 }
                             }
                         } catch (Exception e) {
-                            Log.e("SSLGETErroR", e.getMessage());
+                            String err = (e == null || e.getMessage()==null) ? "Donwload Progress Failed": e.getMessage();
+                            Log.e("SSLDWNError",err);
                         }
                     }
                 };
@@ -852,13 +853,14 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                         callbackContext.error("DataObjectErrN" + e.getMessage());
 
                     } catch (Exception e) {
-                        Log.e("SSLGETErroR", e.getMessage());
+                        String err = ( e == null || e.getMessage()==null ) ? "Donwload Failed" : e.getMessage();
+                        Log.e("SSLDWNGETPOSError", err);
 
                         try {
                             retObj.put("data", "");
                             retObj.put("httperrorcode", 0);
                             retObj.put("errorcode", 1203);
-                            retObj.put("errorinfo", e.getMessage());
+                            retObj.put("errorinfo", err);
                         } catch (JSONException ex) { }
 
                         callbackContext.error(retObj);
@@ -870,7 +872,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
 
         } catch (Exception e) {
             //do something
-            Log.e("SSLGETErroR", e.getMessage());
+            Log.e("SSLError", e.getMessage());
             retObj.put("data", "");
             retObj.put("httperrorcode", 0);
             retObj.put("errorcode", 1203);
