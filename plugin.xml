@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<plugin id="cordova-plugin-sslsupport" version="1.1.3" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<plugin id="cordova-plugin-sslsupport" version="1.1.4" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
 	<name>Cordova Plugin SSL Support</name>
 
 	<js-module name="CordovaPluginSslSupport" src="www/sslsupport.js">
@@ -45,7 +45,7 @@
                 <source url="https://github.com/CocoaPods/Specs.git"/>
             </config>
             <pods use-frameworks="true">
-                <pod name="AFNetworking" spec="~> 4.0" />
+                <pod name="AFNetworking" tag="4.0.1" git="https://github.com/AFNetworking/AFNetworking.git" />
             </pods>
         </podspec>
         

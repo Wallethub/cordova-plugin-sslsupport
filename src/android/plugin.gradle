@@ -13,5 +13,5 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.franmontiel:PersistentCookieJar:v1.0.1'
+    implementation 'com.github.thomas-bouvier:persistent-cookie-jar-okhttp:1.0.2'
 }

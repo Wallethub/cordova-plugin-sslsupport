@@ -43,9 +43,9 @@ import java.io.File;
 //import okhttp3.CertificatePinner;
 
 import okhttp3.*;
-import com.franmontiel.persistentcookiejar.*; //for persistentcookiejar
-import com.franmontiel.persistentcookiejar.cache.*; 
-import com.franmontiel.persistentcookiejar.persistence.*;
+import com.thomasbouvier.persistentcookiejar.*; //for persistentcookiejar
+import com.thomasbouvier.persistentcookiejar.cache.*; 
+import com.thomasbouvier.persistentcookiejar.persistence.*;
 
 import java.io.FileOutputStream;
 import java.io.IOException;

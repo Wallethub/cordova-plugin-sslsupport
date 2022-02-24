@@ -436,26 +436,31 @@
         {
             //addthiscookie = [NSNumber numberWithInt:1];
             addthiscookie = true;
-        }
-        else{
+        } else {
             if([[cookie domain] rangeOfString:domainName].location != NSNotFound) {
                 NSLog(@"cookie has the desired domain:%@", cookie);
                addthiscookie = true;
-            }
-            else{
+            } else {
                 addthiscookie = false;
             }
         }
+        if(cookie.isHTTPOnly)  { addthiscookie = false; }
+
+        NSDate* currentDate = [NSDate date];
+
+        if(!cookie.sessionOnly && cookie.expiresDate && [cookie.expiresDate compare:currentDate] == NSOrderedAscending) {
+            addthiscookie = false;
+        }
+
         //NSLog(@"%@", cookie);
-        if(!cookie.isHTTPOnly && addthiscookie)
-        {
-        NSMutableDictionary *cookieProperties = [NSMutableDictionary dictionary];
-        [cookieProperties setObject:cookie.name forKey:[NSHTTPCookieName lowercaseString]];
-        [cookieProperties setObject:cookie.value forKey:[NSHTTPCookieValue lowercaseString]];
-        [cookieProperties setObject:cookie.domain forKey:[NSHTTPCookieDomain lowercaseString]];
-        [cookieProperties setObject:cookie.path forKey:[NSHTTPCookiePath lowercaseString]];
-        [cookieProperties setObject:[NSNumber numberWithInt:cookie.version] forKey:[NSHTTPCookieVersion lowercaseString]];
-        [responseCookies setObject:cookieProperties forKey:cookie.name];
+        if(addthiscookie) {
+            NSMutableDictionary *cookieProperties = [NSMutableDictionary dictionary];
+            [cookieProperties setObject:cookie.name forKey:[NSHTTPCookieName lowercaseString]];
+            [cookieProperties setObject:cookie.value forKey:[NSHTTPCookieValue lowercaseString]];
+            [cookieProperties setObject:cookie.domain forKey:[NSHTTPCookieDomain lowercaseString]];
+            [cookieProperties setObject:cookie.path forKey:[NSHTTPCookiePath lowercaseString]];
+            [cookieProperties setObject:[NSNumber numberWithLong:cookie.version] forKey:[NSHTTPCookieVersion lowercaseString]];
+            [responseCookies setObject:cookieProperties forKey:cookie.name];
         }
     }
     // cookie code ends
@@ -499,7 +504,7 @@
         [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:[response URL] mainDocumentURL:nil];
         
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
-        [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"status"];
+        [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"status"];
         
         if(responseObject != nil){
             [dictionary setObject:responseObject forKey:@"data"];
@@ -520,7 +525,7 @@
         
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
         [dictionary setObject:[error domain] forKey:@"errordomain"];
-        [dictionary setObject:[NSNumber numberWithInt:[error code]] forKey:@"errorcode"];
+        [dictionary setObject:[NSNumber numberWithLong:[error code]] forKey:@"errorcode"];
         
         //for no internet
         if([error code] == -1009){
@@ -537,7 +542,7 @@
             NSLog(@"%@",ErrorResponse);
             
             [dictionary setObject:ErrorResponse forKey:@"data"];
-            [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"httperrorcode"];
+            [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"httperrorcode"];
             [dictionary setObject:[response allHeaderFields] forKey:@"headers"];
         }
         [dictionary setObject:error.localizedDescription forKey:@"errorinfo"];
@@ -584,7 +589,7 @@
         [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:[response URL] mainDocumentURL:nil];
         
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
-        [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"status"];
+        [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"status"];
         
         if(responseObject != nil){
             [dictionary setObject:responseObject forKey:@"data"];
@@ -602,7 +607,7 @@
   
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
         [dictionary setObject:[error domain] forKey:@"errordomain"];
-        [dictionary setObject:[NSNumber numberWithInt:[error code]] forKey:@"errorcode"];
+        [dictionary setObject:[NSNumber numberWithLong:[error code]] forKey:@"errorcode"];
         //for no internet
         if([error code] == -1009){
             [dictionary setObject:[NSNumber numberWithInt:-10] forKey:@"errorcode"];
@@ -617,7 +622,7 @@
 //            NSLog(@"%@",ErrorResponse);
             
             [dictionary setObject:ErrorResponse forKey:@"data"];
-            [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"httperrorcode"];
+            [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"httperrorcode"];
             [dictionary setObject:[response allHeaderFields] forKey:@"headers"];
         }
         [dictionary setObject:error.localizedDescription forKey:@"errorinfo"];
@@ -691,7 +696,7 @@
     
             NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
             [dictionary setObject:[error domain] forKey:@"errordomain"];
-            [dictionary setObject:[NSNumber numberWithInt:[error code]] forKey:@"errorcode"];
+            [dictionary setObject:[NSNumber numberWithLong:[error code]] forKey:@"errorcode"];
             //for no internet
             if([error code] == -1009){
                 [dictionary setObject:[NSNumber numberWithInt:-10] forKey:@"errorcode"];
@@ -704,7 +709,7 @@
             } else {
                 NSString* ErrorResponse = [[NSString alloc] initWithData:(NSData *)error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey] encoding:NSUTF8StringEncoding];
                 [dictionary setObject:ErrorResponse forKey:@"data"];
-                [dictionary setObject:[NSNumber numberWithInt:response.statusCode] forKey:@"httperrorcode"];
+                [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"httperrorcode"];
                 [dictionary setObject:[response allHeaderFields] forKey:@"headers"];
             }
             
