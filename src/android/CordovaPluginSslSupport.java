@@ -1,13 +1,9 @@
 package com.sslsupport.plugin;
 
-import com.sslsupport.plugin.OkHttpUtils;
 
 import android.os.Bundle;
 import android.content.Context;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -21,9 +17,6 @@ import android.webkit.URLUtil;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
-import org.apache.cordova.LOG;
-import org.apache.cordova.PluginEntry;
-import org.apache.cordova.PluginManager;
 import org.apache.cordova.PluginResult;
 
 
@@ -44,38 +37,28 @@ import java.io.File;
 
 import okhttp3.*;
 import com.thomasbouvier.persistentcookiejar.*; //for persistentcookiejar
-import com.thomasbouvier.persistentcookiejar.cache.*; 
+import com.thomasbouvier.persistentcookiejar.cache.*;
 import com.thomasbouvier.persistentcookiejar.persistence.*;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.Writer;
 import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.IOException;
 
-
-import java.net.CookieHandler;
-import java.net.CookieManager;
-import java.net.HttpCookie;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
 import java.net.URI;
-import static java.net.CookiePolicy.ACCEPT_ORIGINAL_SERVER;
 import android.content.SharedPreferences;
 
 //import java.util.Map;
 //import java.util.HashMap;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
+
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import java.io.FileInputStream;
+
 import java.io.InputStream;
 import java.security.KeyStore;
-import java.security.SecureRandom;
+
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -107,8 +90,6 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
         private final ProgressListener progressListener;
         private BufferedSource bufferedSource;
 
-        final JSONObject retObj = new JSONObject();
-
         ProgressResponseBody(ResponseBody responseBody, ProgressListener progressListener) {
             this.responseBody = responseBody;
             this.progressListener = progressListener;
@@ -122,6 +103,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             return responseBody.contentLength();
         }
 
+        @NonNull
         @Override public BufferedSource source() {
             if (bufferedSource == null) {
                 bufferedSource = Okio.buffer(source(responseBody.source()));
@@ -133,7 +115,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             return new ForwardingSource(source) {
                 long totalBytesRead = 0L;
 
-                @Override public long read(Buffer sink, long byteCount) throws IOException {
+                @Override public long read(@NonNull Buffer sink, long byteCount) throws IOException {
                     long bytesRead = super.read(sink, byteCount);
                     // read() returns the number of bytes read, or -1 if this source is exhausted.
                     totalBytesRead += bytesRead != -1 ? bytesRead : 0;
@@ -165,8 +147,6 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
     Boolean OKHTTPCLIENT_INIT = false;
 
     String newurl = "";
-    CookieManager cookieManager = new CookieManager(null, ACCEPT_ORIGINAL_SERVER);
-    //cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
 
     public CertificatePinner getPinnedHashes() {
         CertificatePinner.Builder builder = new CertificatePinner.Builder();
@@ -204,24 +184,17 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
     //OkHttpClient client = new OkHttpClient.Builder().build();
     OkHttpClient httpclient = getOkHttpClient();
 
-    ArrayList<String> domainlist = new ArrayList<String>(); //saves all secure domains
+    ArrayList<String> domainlist = new ArrayList<>(); //saves all secure domains
 
 
     public OkHttpClient getOkHttpClient() {
 
         try {
-
-
-            OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                    //.certificatePinner(certPinner)
-                    //.certificatePinner(getPinnedHashes()) // we will do it during the get or post calls, since activity is not available
-                    //.cookieJar(new JavaNetCookieJar(cookieManager))
-                    //.cookieJar(cookieJar)
+            return new OkHttpClient.Builder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .writeTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .build();
-            return okHttpClient;
         } catch (Exception e) {
             //do something
             Log.e("SSLpinning", "getclientException+" + e.getMessage());
@@ -269,13 +242,10 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             try{
                 this.getCookies(args, callbackContext);
                 
-            }catch (NullPointerException e)
+            } catch (Exception e)
             {
                 callbackContext.error(e.getMessage());
                 return false;
-            } catch(Exception e) {
-                callbackContext.error(e.getMessage());
-                 return false;
             }
             return true;
         }
@@ -283,13 +253,10 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             try{
                 this.enableSSLPinning(args, callbackContext);
                 
-            }catch (NullPointerException e)
+            } catch (Exception e)
             {
                 callbackContext.error(e.getMessage());
                 return false;
-            } catch(Exception e) {
-                callbackContext.error(e.getMessage());
-                 return false;
             }
             return true;
         }
@@ -300,13 +267,10 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 OkHttpUtils.cancelCallWithTag(httpclient, urlkey);
                 callbackContext.success("done");
                 
-            }catch (NullPointerException e)
+            } catch (Exception e)
             {
                 callbackContext.error(e.getMessage());
                 return false;
-            } catch(Exception e) {
-                callbackContext.error(e.getMessage());
-                 return false;
             }
             return true;
         }
@@ -341,7 +305,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             }
     
 
-    if(OKHTTPCLIENT_INIT == false){
+    if(!OKHTTPCLIENT_INIT){
     Log.i("SSLpinning", "OKHTTPCLIENT_INIT: Done");
     
        cookieJar = new PersistentCookieJar(new SetCookieCache(), new SharedPrefsCookiePersistor(context));
@@ -365,8 +329,8 @@ private void getCookies(JSONArray args, CallbackContext callbackContext) throws 
         domainName = args.getString(0);
     }
     
-    Boolean addthiscookie = true;
-    String cookiedomain = "";
+    boolean addthiscookie;
+    String cookiedomain;
 
 JSONObject jsonCookies = new JSONObject();
 
@@ -376,7 +340,7 @@ JSONObject jsonCookies = new JSONObject();
         List<Cookie> cookies = loadAllPersistentCookies();
          for (int i = 0; i < cookies.size(); i++) {
                     Cookie cookie = cookies.get(i); 
-                    cookiedomain = cookie.domain().toString();
+                    cookiedomain = cookie.domain();
                     if(domainName.equals("all"))
                     {
                         addthiscookie = true;
@@ -393,12 +357,12 @@ JSONObject jsonCookies = new JSONObject();
                     if(addthiscookie)
                     {   
                     JSONObject jsonCookie = new JSONObject();
-                    jsonCookie.put("name", cookie.name().toString());
-                    jsonCookie.put("value", cookie.value().toString());
-                    jsonCookie.put("domain", cookie.domain().toString());
-                    jsonCookie.put("path", cookie.path().toString());
+                    jsonCookie.put("name", cookie.name());
+                    jsonCookie.put("value", cookie.value());
+                    jsonCookie.put("domain", cookie.domain());
+                    jsonCookie.put("path", cookie.path());
 
-                    jsonCookies.put(cookie.name().toString(), jsonCookie);
+                    jsonCookies.put(cookie.name(), jsonCookie);
                     }
                 }
 
@@ -448,10 +412,8 @@ boolean sslstatus = args.getBoolean(0);
                             //client = client.newBuilder().certificatePinner(getPinnedHashes()).build();
                              try{
                                     doSSLpinningTrustManager(args, callbackContext);
-                                }catch (NullPointerException e)
+                                } catch (Exception e)
                                 {
-                                    callbackContext.error(e.getMessage());
-                                } catch(Exception e) {
                                     callbackContext.error(e.getMessage());
                                 }
                             SSL_PINNING_STATUS = true;    
@@ -551,12 +513,12 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
     //headers : {}, urlkey : "google"
 
     String url = args.getString(0);
-    String urlkey = "default";
+    String urlkey;
     JSONObject qdata = new JSONObject();
     JSONObject headers = new JSONObject();
     String dest = "";
-    Boolean securedomain = false;
-    Boolean isjson = false;
+    boolean securedomain;
+    boolean isjson = false;
     OkHttpClient useClient;
 
     final JSONObject retObj = new JSONObject();
@@ -567,13 +529,11 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
     Request request;
 
 
-    if(SSL_PINNING_STATUS == false && SSL_PINNING_STOP == false)
+    if(!SSL_PINNING_STATUS && !SSL_PINNING_STOP)
     {
         try {
             doSSLpinningTrustManager(args, callbackContext);
-        }catch (NullPointerException e) {
-            callbackContext.error(e.getMessage());
-        } catch(Exception e) {
+        } catch (Exception e) {
             callbackContext.error(e.getMessage());
         }
 
@@ -592,7 +552,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
 
     try {
 
-        if (action.equals("download") == false) qdata = args.getJSONObject(1);
+        if (!action.equals("download")) qdata = args.getJSONObject(1);
         else dest = args.getString(1);
 
         headers = args.getJSONObject(2);
@@ -634,8 +594,8 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
 
             urlkey = args.getString(3);
 
-            String domainname = HttpUrl.parse(url).host();
-            String wildcarddomainname = HttpUrl.parse(url).host();
+            String domainname = Objects.requireNonNull(HttpUrl.parse(url)).host();
+            String wildcarddomainname = Objects.requireNonNull(HttpUrl.parse(url)).host();
 
             String[] arr = domainname.split("\\.");
             if (arr.length == 2)//just a common case of wildcard domain supporting the root as well
@@ -683,7 +643,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
             } else {
 
                 //## adding the query parameters
-                HttpUrl.Builder httpBuider = HttpUrl.parse(url).newBuilder();
+                HttpUrl.Builder httpBuider = Objects.requireNonNull(HttpUrl.parse(url)).newBuilder();
                 Iterator<?> keys = qdata.keys();
                 while (keys.hasNext()) {
                     String key = (String) keys.next();
@@ -694,7 +654,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                 request = new Request.Builder().url(newurl).headers(headersBuilder.build()).tag(urlkey).build();
             }
 
-            if (securedomain == true) {
+            if (securedomain) {
                 useClient = client;
             } else {
                 useClient = httpclient;
@@ -706,10 +666,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                     public void update(long bytesRead, long contentLength, boolean done) {
                         final JSONObject retObj = new JSONObject();
                         try {
-                            if (done) {
-
-                            } else {
-
+                            if (!done) {
                                 if (contentLength != -1) {
                                     double progress = ((100 * (double) bytesRead) / (double) contentLength) / 100;
 
@@ -729,7 +686,8 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                 Log.i("SSLpinning", "create download client");
                 useClient = useClient.newBuilder()
                         .addNetworkInterceptor(new Interceptor() {
-                            @Override public Response intercept(Chain chain) throws IOException {
+                            @NonNull
+                            @Override public Response intercept(@NonNull Chain chain) throws IOException {
                                 Response originalResponse = chain.proceed(chain.request());
                                 return originalResponse.newBuilder()
                                         .body(new ProgressResponseBody(originalResponse.body(), progressListener))
@@ -741,17 +699,17 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
             OkHttpUtils.cancelCallWithTag(useClient, urlkey);
 
             String finalDest =
-                    dest != null && dest.length() > 1 && dest != "null" ? dest :
+                    dest != null && dest.length() > 1 && !dest.equals("null") ? dest :
                             cordova.getContext().getFilesDir().toString() + "/" + URLUtil.guessFileName(request.url().toString(),null,null);
 
             useClient.newCall(request).enqueue(new Callback() {
                 @Override
-                public void onFailure(Call call, IOException e) {
+                public void onFailure(@NonNull Call call, @NonNull IOException e) {
                     //e.printStackTrace();
                     try {
                         Log.e("SSLpINErroR", e.getMessage());
                         String errStr = e.getMessage();
-                        String err = errStr.toLowerCase();
+                        String err = Objects.requireNonNull(errStr).toLowerCase();
                         JSONObject erritems = new JSONObject();
 
                         erritems.put("err-1202", "CertPathValidatorException");
@@ -766,7 +724,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                         retObj.put("httperrorcode", 0);
                         retObj.put("errorcode", -1);
 
-                        int myNum = 0;
+                        int myNum;
 
 
                         Iterator<String> iter = erritems.keys();
@@ -801,14 +759,14 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                 }
 
                 @Override
-                public void onResponse(Call call, final Response response) throws IOException {
+                public void onResponse(@NonNull Call call, @NonNull final Response response) {
                     try {
 
                         JSONObject jsonHeaders = new JSONObject();
 
                         Headers responseHeaders = response.headers();
                         for (int i = 0; i < responseHeaders.size(); i++) {
-                            jsonHeaders.put(responseHeaders.name(i).toString(), responseHeaders.value(i));
+                            jsonHeaders.put(responseHeaders.name(i), responseHeaders.value(i));
                         }
 
                         retObj.put("headers", jsonHeaders);
@@ -819,7 +777,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                                 file.createNewFile();
                                 BufferedSink sink = Okio.buffer(Okio.sink(file));
                                 // you can access body of response
-                                sink.writeAll(response.body().source());
+                                sink.writeAll(Objects.requireNonNull(response.body()).source());
                                 sink.close();
 
                                 Log.i("SSLpinning", "File downloaded to: "+ finalDest);
@@ -827,14 +785,14 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
                                 retObj.put("url", finalDest);
 
                             } else {
-                                retObj.put("data", response.body().string());
+                                retObj.put("data", Objects.requireNonNull(response.body()).string());
                             }
 
                             retObj.put("status", response.code());
                             callbackContext.success(retObj);
 
                         } else {
-                            retObj.put("data", response.body().string());
+                            retObj.put("data", Objects.requireNonNull(response.body()).string());
 
                             retObj.put("httperrorcode", response.code());
 
