@@ -93,13 +93,16 @@ var http = {
         if (params.hasOwnProperty("headers")) { headers = params.headers || {} }
         if (params.id) { urlkey = params.id; }
 
+        var is_json = false;
         if(headers["Content-Type"] && headers["Content-Type"] == "application/json" && typeof data == "string") {
+            is_json = true;
             try {
                 data = JSON.parse(data);
             } catch(e) {}
         }
-        
-        var validate = validateParams({ url:url,headers:headers,data:data });
+        if(!is_json && typeof data == "object") is_json = true;
+        // do not validate a form post data
+        var validate = validateParams({ url:url,headers:headers,data: is_json ?  data : {} });
         if(validate.failed) {
             failure(validate.details);
             return;
