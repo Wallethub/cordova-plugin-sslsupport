@@ -57,7 +57,6 @@ import java.util.concurrent.TimeUnit;
 
 
 import java.io.InputStream;
-import java.security.KeyStore;
 
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -411,7 +410,7 @@ boolean sslstatus = args.getBoolean(0);
                         {
                             //client = client.newBuilder().certificatePinner(getPinnedHashes()).build();
                              try{
-                                    doSSLpinningTrustManager(args, callbackContext);
+                                    doSSLpinning(args, callbackContext);
                                 } catch (Exception e)
                                 {
                                     callbackContext.error(e.getMessage());
@@ -429,18 +428,13 @@ boolean sslstatus = args.getBoolean(0);
         
 }
 //########### Enable SSL pinning with Trust Manager, Helper function
-private void doSSLpinningTrustManager(JSONArray args, final CallbackContext callbackContext){
+private void doSSLpinning(JSONArray args, final CallbackContext callbackContext){
 
     Activity activity = this.cordova.getActivity(); 
     Context context = activity.getApplicationContext();
     CertificatePinner.Builder builder = new CertificatePinner.Builder();
 
-    try {
-
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, null);
-
-            
+    try {            
             String[] fileNames = context.getAssets().list("certificates");
             for(String name:fileNames){ 
                  //Log.e("SSLpinning", "getPEM: " + name);
@@ -452,7 +446,7 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                             Log.i("SSLpinning", "FOUND-PEM: " + name +  " for domain: " + domainname);
                             while (bis.available() > 0) {
                                 Certificate cert = certificateFactory.generateCertificate(bis);
-                                keyStore.setCertificateEntry(domainname, cert);
+                                builder.add(domainname, doGenerate256(domainname, cert));
                                 domainlist.add(domainname);
                             }
                     }
@@ -464,9 +458,7 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                             Log.i("SSLpinning", "FOUND-CER: " + name +  " for domain: " + domainname);
                             while (bis.available() > 0) {
                                 Certificate cert = certificateFactory.generateCertificate(bis);
-                                //doGenerate256(cert); //trying to generate sha256 here
                                 builder.add(domainname, doGenerate256(domainname, cert));
-                                keyStore.setCertificateEntry(domainname, cert);
                                 domainlist.add(domainname);
                             }
                     }
@@ -475,16 +467,8 @@ private void doSSLpinningTrustManager(JSONArray args, final CallbackContext call
                     }
             }            
 
-
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            trustManagerFactory.init(keyStore);
-            TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustManagers, null);
             client = client.newBuilder()
-                //.certificatePinner(getPinnedHashes())
                 .certificatePinner(builder.build())
-                .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustManagers[0])
                 .build();
         } catch (Exception e) {
             Log.e("SSLpinning", "getsslconteXTException+" +e.getMessage());
@@ -532,7 +516,7 @@ private void getpostMethod(String action, JSONArray args, final CallbackContext 
     if(!SSL_PINNING_STATUS && !SSL_PINNING_STOP)
     {
         try {
-            doSSLpinningTrustManager(args, callbackContext);
+            doSSLpinning(args, callbackContext);
         } catch (Exception e) {
             callbackContext.error(e.getMessage());
         }
