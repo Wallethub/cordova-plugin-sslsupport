@@ -501,7 +501,10 @@
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
 
         NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:[response allHeaderFields] forURL:[response URL]];
-        [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:[response URL] mainDocumentURL:nil];
+
+        for (NSHTTPCookie *cookie in cookies) {
+            [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookie:cookie];
+        }
         
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
         [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"status"];
@@ -586,7 +589,10 @@
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
         
         NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:[response allHeaderFields] forURL:[response URL]];
-        [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:[response URL] mainDocumentURL:nil];
+        
+        for (NSHTTPCookie *cookie in cookies) {
+            [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookie:cookie];
+        }
         
         NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
         [dictionary setObject:[NSNumber numberWithLong:response.statusCode] forKey:@"status"];
