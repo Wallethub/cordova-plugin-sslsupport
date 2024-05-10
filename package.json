@@ -1,6 +1,6 @@
 {
     "name": "cordova-plugin-sslsupport",
-    "version": "1.2.4",
+    "version": "1.3.0",
     "description": "Cordova HTTP plugin with SSL Pinning for iOS (AFnetworking) and Android (OKhttp3)",
     "cordova": {
         "id": "cordova-plugin-sslsupport",

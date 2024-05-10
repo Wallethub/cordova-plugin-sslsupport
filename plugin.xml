@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<plugin id="cordova-plugin-sslsupport" version="1.2.4" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<plugin id="cordova-plugin-sslsupport" version="1.3.0" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
 	<name>Cordova Plugin SSL Support</name>
 
 	<js-module name="CordovaPluginSslSupport" src="www/sslsupport.js">
@@ -21,8 +21,8 @@
         </config-file>
         
         <framework src="src/android/plugin.gradle" custom="true" type="gradleReference"/>
-        <framework src="com.squareup.okhttp3:okhttp:4.11.0" />
-        <framework src="com.squareup.okhttp3:okhttp-urlconnection:4.11.0" />
+        <framework src="com.squareup.okhttp3:okhttp:4.12.0" />
+        <framework src="com.squareup.okhttp3:okhttp-urlconnection:4.12.0" />
         <framework src="androidx.annotation:annotation:1.5.0" />
         
         <source-file src="src/android/CordovaPluginSslSupport.java" target-dir="src/com/sslsupport/plugin" />

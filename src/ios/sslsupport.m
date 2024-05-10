@@ -470,9 +470,24 @@
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
+- (NSURLSessionDataTask *)sendRequest:(AFHTTPSessionManager *)manager (NSString *)method url:(NSString *)url parameters:(NSDictionary *)parameters success:(void (^)(NSURLSessionTask *operation, id responseObject))success failure:(void (^)(NSURLSessionTask *operation, NSError *error))failure {
 
-- (void)post:(CDVInvokedUrlCommand*)command {
-    
+    NSURLSessionDataTask *task;
+
+    if ([method isEqualToString:@"PUT"]) {
+        task = [manager PUT:url parameters:parameters headers:nil success:success failure:failure];
+    } else if ([method isEqualToString:@"DELETE"]) {
+        task = [manager DELETE:url parameters:parameters headers:nil success:success failure:failure];
+    } else {
+        task = [manager POST:url parameters:parameters headers:nil progress:nil success:success failure:failure];
+    }
+
+    return task;
+}
+
+
+- (void) send:(CDVInvokedUrlCommand*)command method:(NSString*)method {
+
     NSString *URL = [command.arguments objectAtIndex:0];
     NSDictionary *parameters = [command.arguments objectAtIndex:1];
     NSDictionary *headers = [command.arguments objectAtIndex:2];
@@ -484,20 +499,15 @@
     
     CordovaPluginSslSupport* __weak weakSelf = self;
 
-      if ([taskDictionary objectForKey:URLkey]) {
+    if ([taskDictionary objectForKey:URLkey]) {
         // key exists.
         NSLog(@"ArrCancelled: %@", URLkey);
         [[taskDictionary objectForKey:URLkey] cancel];
         [taskDictionary removeObjectForKey:URLkey];
     }
-    else
-    {
-        // ...
-    }
     
-    NSURLSessionDataTask *task = [manager POST:URL parameters:parameters headers:nil progress:nil success:^(NSURLSessionTask *operation, id responseObject) {
-        //NSLog(@"JSON: %@", responseObject);
-        //NSLog(@"%@", operation.response);
+    NSURLSessionDataTask *task = [self sendRequest:manager method:method url:URL parameters:parameters success:^(NSURLSessionTask *operation, id responseObject) {
+
         NSHTTPURLResponse *response = (NSHTTPURLResponse *) [operation response];
 
         NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:[response allHeaderFields] forURL:[response URL]];
@@ -559,7 +569,17 @@
     
     // add the task to our arrayOfTasks
     [taskDictionary setObject:task forKey:URLkey];
+}
 
+- (void)post:(CDVInvokedUrlCommand*)command {
+    [send command:command method:@"POST"];
+}
+
+- (void)put:(CDVInvokedUrlCommand*)command {
+    [send command:command method:@"PUT"];
+}
+- (void)delete:(CDVInvokedUrlCommand*)command {
+    [send command:command method:@"DELETE"];
 }
 
 
