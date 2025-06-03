@@ -64,7 +64,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import javax.security.auth.callback.Callback;
 
 import okio.Buffer;
 import okio.BufferedSink;
@@ -226,7 +225,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             return true;
 
         } else if (action.equals("get") || action.equals("post") || action.equals("download") || action.equals("put")
-                || action.equals("delete") || action.equals(("upload"))) {
+                || action.equals("delete")) {
             try {
                 try {
                     this.getpostMethod(action, args, callbackContext);
@@ -287,18 +286,9 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
     }
 
     // #######################Initialize
-
-    public void initialize(final CordovaInterface cordova, final CordovaWebView webView) {
-        super.initialize(cordova, webView);
-        // try{
-
-        // settings = ((WebView) webView.getEngine().getView()).getSettings();
-
-        // }catch (Exception error){
-
-        // settings = null;
-
-        // }
+    @Override
+    public void pluginInitialize() {
+        super.pluginInitialize();
 
         activity = cordova.getActivity();
         Context context = activity.getApplicationContext();
@@ -334,44 +324,46 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             domainName = args.getString(0);
         }
 
-        boolean addthiscookie;
-        String cookiedomain;
-
-        JSONObject jsonCookies = new JSONObject();
-
         // for all persistent cookies
-        try {
+        String finalDomainName = domainName;
+        cordova.getThreadPool().execute(() -> {
+            boolean addthiscookie;
+            String cookiedomain;
+            JSONObject jsonCookies = new JSONObject();
 
-            List<Cookie> cookies = loadAllPersistentCookies();
-            for (int i = 0; i < cookies.size(); i++) {
-                Cookie cookie = cookies.get(i);
-                cookiedomain = cookie.domain();
-                if (domainName.equals("all")) {
-                    addthiscookie = true;
-                } else {
-                    if (cookiedomain.contains(domainName)) {
+            try {
+
+                List<Cookie> cookies = loadAllPersistentCookies();
+                for (int i = 0; i < cookies.size(); i++) {
+                    Cookie cookie = cookies.get(i);
+                    cookiedomain = cookie.domain();
+                    if (finalDomainName.equals("all")) {
                         addthiscookie = true;
                     } else {
-                        addthiscookie = false;
+                        if (cookiedomain.contains(finalDomainName)) {
+                            addthiscookie = true;
+                        } else {
+                            addthiscookie = false;
+                        }
+                    }
+
+                    if (addthiscookie) {
+                        JSONObject jsonCookie = new JSONObject();
+                        jsonCookie.put("name", cookie.name());
+                        jsonCookie.put("value", cookie.value());
+                        jsonCookie.put("domain", cookie.domain());
+                        jsonCookie.put("path", cookie.path());
+
+                        jsonCookies.put(cookie.name(), jsonCookie);
                     }
                 }
 
-                if (addthiscookie) {
-                    JSONObject jsonCookie = new JSONObject();
-                    jsonCookie.put("name", cookie.name());
-                    jsonCookie.put("value", cookie.value());
-                    jsonCookie.put("domain", cookie.domain());
-                    jsonCookie.put("path", cookie.path());
-
-                    jsonCookies.put(cookie.name(), jsonCookie);
-                }
+                callbackContext.success(jsonCookies);
+            } catch (JSONException je) {
+                Log.e("CookieError", je.getMessage());
+                callbackContext.error(je.getMessage());
             }
-
-            callbackContext.success(jsonCookies);
-        } catch (JSONException je) {
-            Log.e("CookieError", je.getMessage());
-            callbackContext.error(je.getMessage());
-        }
+        });
 
     }
 
@@ -693,7 +685,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
 
                 String finalDest = dest != null && dest.length() > 1 && !dest.equals("null") ? dest
                         : cordova.getContext().getFilesDir().toString() + "/"
-                                + URLUtil.guessFileName(request.url().toString(), null, null);
+                        + URLUtil.guessFileName(request.url().toString(), null, null);
 
                 useClient.newCall(request).enqueue(new Callback() {
                     @Override
@@ -712,7 +704,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                             erritems.put("err-10", "No address associated with hostname"); // no internet
                             // erritems.put("err-10", "failed to connect"); //no internet
                             erritems.put("err-999", "Canceled"); // navigation cancelled by the app by triggering the
-                                                                 // unique key method
+                            // unique key method
 
                             retObj.put("data", "");
                             retObj.put("httperrorcode", 0);
@@ -893,6 +885,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 String value = headers.getString(key);
                 headersBuilder.set(key, value);
             }
+            headersBuilder.set("Content-Type", "multipart/form-data"); // set default content type
         } catch (Exception e) {
             // xx.toString();
             retObj.put("data", "");
