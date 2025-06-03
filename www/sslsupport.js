@@ -1,5 +1,6 @@
 //@ts-check
 //@ts-ignore
+/// <reference path="cordova.d.ts" />
 var exec = require("cordova/exec");
 
 // Generate a unique string similar to php uniqid
@@ -271,6 +272,67 @@ var http = {
 		);
 	},
 
+	upload: function (params, success, failure) {
+		var url = "";
+		/** @type {FormData} */
+		var data;
+		var headers = {};
+		var urlkey = uniqid();
+
+		if (params.hasOwnProperty("url")) {
+			url = params.url;
+		}
+		if (!params.hasOwnProperty("data") || !(params.data instanceof FormData)) {
+			failure({ errorcode: -1, errordomain: "invalidParameter", errorinfo: "data must be an instance of FormData" });
+			return;
+		}
+
+		data = params.data;
+
+		if (params.hasOwnProperty("headers")) {
+			headers = params.headers || {};
+		}
+		if (params.id) {
+			urlkey = params.id;
+		}
+
+		var postData = {};
+
+		/** @type {File} */
+		var file;
+		data.forEach(function (value, key) {
+			if (value instanceof File) {
+				file = value;
+				postData["file"] = key;
+			} else {
+				postData[key] = value;
+			}
+		});
+
+		if (!file) {
+			failure({ errorcode: -1, errordomain: "invalidParameter", errorinfo: "File is required for upload" });
+			return;
+		}
+
+		window.resolveLocalFileSystemURL(
+			window["cordova"].file.cacheDirectory,
+			/** @param {DirectoryEntry} dir **/ function (dir) {
+				dir.getFile(
+					Date.now() + "_" + file.name,
+					{ create: true, exclusive: false },
+					function (fileEntry) {
+						fileEntry.createWriter(function (fileWriter) {
+							fileWriter.write(file);
+							var fileUri = fileEntry.toURL();
+
+							window["cordova"].exec(success, failure, "CordovaPluginSslSupport", "upload", [url, urlkey, fileUri, headers, postData]);
+						}, failure);
+					},
+					failure,
+				);
+			},
+		);
+	},
 	cancelRequest: function (urlkey, success, failure) {
 		if (!urlkey) {
 			urlkey = currentUrlId;

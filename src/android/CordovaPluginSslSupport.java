@@ -1,5 +1,6 @@
 package com.sslsupport.plugin;
 
+import android.net.Uri;
 import android.os.Bundle;
 import android.content.Context;
 import android.app.Activity;
@@ -49,6 +50,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import java.net.URLConnection;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -62,6 +64,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.security.auth.callback.Callback;
 
 import okio.Buffer;
 import okio.BufferedSink;
@@ -147,6 +150,8 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
 
     String newurl = "";
 
+    String TAG = "SSLpinning";
+
     public CertificatePinner getPinnedHashes() {
         CertificatePinner.Builder builder = new CertificatePinner.Builder();
         Activity activity = this.cordova.getActivity();
@@ -154,7 +159,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             appliInfo = activity.getPackageManager().getApplicationInfo(activity.getPackageName(),
                     PackageManager.GET_META_DATA);
         } catch (NameNotFoundException e) {
-            Log.e("SSLpinning", "NameNotFoundException+" + e.getMessage());
+            Log.e(TAG, "NameNotFoundException+" + e.getMessage());
         }
         Bundle bundle = appliInfo.metaData;
         try {
@@ -164,15 +169,15 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 String[] vals = val.split(",");
                 for (int i = 0; i < vals.length; i++) {
                     builder.add(key, "sha256/" + vals[i]);
-                    Log.i("SSLpinning", key + "=" + "sha256/" + vals[i]);
+                    Log.i(TAG, key + "=" + "sha256/" + vals[i]);
                 }
             }
         } catch (IllegalArgumentException e) {
             // do something
-            Log.e("SSLpinning", "IllegalArgumentException+" + e.getMessage());
+            Log.e(TAG, "IllegalArgumentException+" + e.getMessage());
         } catch (Exception e) {
             // do something
-            Log.e("SSLpinning", "Exception+" + e.getMessage());
+            Log.e(TAG, "Exception+" + e.getMessage());
         }
 
         return builder.build();
@@ -194,7 +199,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                     .build();
         } catch (Exception e) {
             // do something
-            Log.e("SSLpinning", "getclientException+" + e.getMessage());
+            Log.e(TAG, "getclientException+" + e.getMessage());
         }
 
         return new OkHttpClient();
@@ -206,9 +211,22 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
         PUBLIC_CALLBACKS = callbackContext;
 
         JSONObject retObj = new JSONObject();
+        if (action.equals(("upload"))) {
+            try {
+                this.uploadMethod(args, callbackContext);
 
-        if (action.equals("get") || action.equals("post") || action.equals("download") || action.equals("put")
-                || action.equals("delete")) {
+            } catch (Exception e) {
+                retObj.put("data", "");
+                retObj.put("httperrorcode", 0);
+                retObj.put("errorcode", -2);
+                retObj.put("errorinfo", e.getMessage());
+                callbackContext.error(retObj);
+                return false;
+            }
+            return true;
+
+        } else if (action.equals("get") || action.equals("post") || action.equals("download") || action.equals("put")
+                || action.equals("delete") || action.equals(("upload"))) {
             try {
                 try {
                     this.getpostMethod(action, args, callbackContext);
@@ -497,6 +515,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 doSSLpinning(args, callbackContext);
             } catch (Exception e) {
                 callbackContext.error(e.getMessage());
+                return;
             }
 
             SSL_PINNING_STATUS = true;
@@ -510,6 +529,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             retObj.put("errorcode", -1);
             retObj.put("errorinfo", e.getMessage());
             callbackContext.error(retObj);
+            return;
         }
 
         try {
@@ -540,6 +560,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 retObj.put("errorcode", -1);
                 retObj.put("errorinfo", e.getMessage());
                 callbackContext.error(retObj);
+                return;
             }
 
         } catch (JSONException e) {
@@ -820,7 +841,191 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
         }
     }
 
-    // ###############
+    // ########### upload function
+    private void uploadMethod(JSONArray args, CallbackContext callbackContext) throws JSONException {
+
+        String url = args.getString(0);
+        String urlkey = args.getString(1);
+        String fileUri = args.getString(2);
+
+        JSONObject headers = new JSONObject();
+        if (args.length() > 3) {
+            headers = args.getJSONObject(3);
+        }
+
+        JSONObject qdata = new JSONObject();
+        if (args.length() > 4) {
+            qdata = args.getJSONObject(4);
+        }
+
+        if (!SSL_PINNING_STATUS && !SSL_PINNING_STOP) {
+            try {
+                doSSLpinning(args, callbackContext);
+            } catch (Exception e) {
+                callbackContext.error(e.getMessage());
+                return;
+            }
+
+            SSL_PINNING_STATUS = true;
+        }
+
+        Headers.Builder headersBuilder = new Headers.Builder();
+        OkHttpClient client;
+
+        final JSONObject retObj = new JSONObject();
+
+        try {
+            headersBuilder.set("User-Agent", settings.getUserAgentString()); // for user agent
+        } catch (Exception e) {
+            retObj.put("data", "");
+            retObj.put("httperrorcode", 0);
+            retObj.put("errorcode", -1);
+            retObj.put("errorinfo", e.getMessage());
+            callbackContext.error(retObj);
+            return;
+        }
+
+        try {
+
+            Iterator<?> keys = headers.keys();
+            while (keys.hasNext()) {
+                String key = (String) keys.next();
+                String value = headers.getString(key);
+                headersBuilder.set(key, value);
+            }
+        } catch (Exception e) {
+            // xx.toString();
+            retObj.put("data", "");
+            retObj.put("httperrorcode", 0);
+            retObj.put("errorcode", -1);
+            retObj.put("errorinfo", e.getMessage());
+            callbackContext.error(retObj);
+            return;
+        }
+
+        String domainname = Objects.requireNonNull(HttpUrl.parse(url)).host();
+        String wildcarddomainname = Objects.requireNonNull(HttpUrl.parse(url)).host();
+        boolean securedomain = false;
+
+        String[] arr = domainname.split("\\.");
+        if (arr.length == 2)// just a common case of wildcard domain supporting the root as well
+        {
+            wildcarddomainname = "*." + arr[0] + '.' + arr[1];
+        } else if (arr.length > 2) {
+            wildcarddomainname = "*";
+            for (int i = 1; i < arr.length; i++) {
+                wildcarddomainname += "." + arr[i];
+            }
+        }
+        Log.i(TAG, "WILDCARDDomain: " + wildcarddomainname);
+
+        if (domainlist.contains(domainname)) {
+            securedomain = true;
+            Log.i(TAG, "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
+        } else if (domainlist.contains(wildcarddomainname)) {
+            securedomain = true;
+            Log.i(TAG, "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
+        } else {
+            securedomain = false;
+            Log.i(TAG, "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
+        }
+
+        if (securedomain) {
+            client = this.client;
+        } else {
+            client = this.httpclient;
+        }
+
+        final JSONObject finalQdata = qdata;
+        cordova.getThreadPool().execute(() -> {
+            try {
+                Uri uri = Uri.parse(fileUri);
+                File file = new File(uri.getPath());
+
+                if (!file.exists()) {
+                    callbackContext.error("File not found: " + fileUri);
+                    return;
+                }
+
+                String mimeType = URLConnection.guessContentTypeFromName(file.getName());
+                MediaType mediaType = MediaType.parse(mimeType != null ? mimeType : "application/octet-stream");
+                RequestBody fileBody = RequestBody.create(file, mediaType);
+
+                MultipartBody.Builder multipartBuilder = new MultipartBody.Builder()
+                        .setType(MultipartBody.FORM);
+
+                String fileKey = "file"; // Default key for file upload
+                if (finalQdata.has("file")) {
+                    fileKey = finalQdata.getString("file");
+                }
+                Iterator<String> keys = finalQdata.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    if (key == "file")
+                        continue; // Skip the file key
+                    String value = finalQdata.getString(key);
+                    multipartBuilder.addFormDataPart(key, value);
+                }
+
+                multipartBuilder.addFormDataPart(fileKey, file.getName(), fileBody);
+
+                RequestBody requestBody = multipartBuilder.build();
+
+                Request request = new Request.Builder()
+                        .url(url)
+                        .headers(headersBuilder.build())
+                        .post(requestBody)
+                        .build();
+
+                Response response = client.newCall(request).execute();
+
+                // clean up the file after upload
+                if (file.exists()) {
+                    file.delete();
+                }
+
+                JSONObject jsonHeaders = new JSONObject();
+
+                Headers responseHeaders = response.headers();
+                for (int i = 0; i < responseHeaders.size(); i++) {
+                    jsonHeaders.put(responseHeaders.name(i), responseHeaders.value(i));
+                }
+
+                retObj.put("headers", jsonHeaders);
+
+                if (response.isSuccessful()) {
+                    retObj.put("data", Objects.requireNonNull(response.body()).string());
+                    retObj.put("status", response.code());
+                    callbackContext.success(retObj);
+                } else {
+                    retObj.put("data", Objects.requireNonNull(response.body()).string());
+                    retObj.put("httperrorcode", response.code());
+                    if (response.code() >= 400 && response.code() <= 600) {
+                        retObj.put("errorcode", -1011);
+                    } else {
+                        retObj.put("errorcode", response.code());
+                    }
+
+                    retObj.put("errorinfo", response.toString());
+
+                    callbackContext.error(retObj);
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Upload failed", e);
+                JSONObject errorObj = new JSONObject();
+                try {
+                    errorObj.put("data", "");
+                    errorObj.put("httperrorcode", 0);
+                    errorObj.put("errorcode", -1);
+                    errorObj.put("errorinfo", "Upload failed: " + e.getMessage());
+                } catch (JSONException jsonException) {
+                    Log.e(TAG, jsonException.getMessage());
+                }
+                callbackContext.error(errorObj);
+            }
+        });
+    }
 
 }
 
