@@ -331,7 +331,6 @@ var http = {
 								};
 
 								fileWriter.onerror = function (e) {
-									console.error("❌ Write failed: ", e);
 									failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
 								};
 								fileWriter.write(file);
