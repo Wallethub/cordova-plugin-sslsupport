@@ -273,11 +273,11 @@ var http = {
 	},
 
 	upload: function (params, success, failure) {
-		var url = "";
+		let url = "";
 		/** @type {FormData} */
-		var data;
-		var headers = {};
-		var urlkey = uniqid();
+		let data;
+		let headers = {};
+		let urlkey = uniqid();
 
 		if (params.hasOwnProperty("url")) {
 			url = params.url;
@@ -296,18 +296,19 @@ var http = {
 			urlkey = params.id;
 		}
 
-		var postData = {};
+		let postData = {};
 
 		/** @type {File} */
-		var file;
-		data.forEach(function (value, key) {
-			if (value instanceof File) {
+		let file;
+		for (const pair of data.entries()) {
+			const [key, value] = pair;
+			if (typeof value === "object" && value?.constructor?.name === "File") {
 				file = value;
 				postData["file"] = key;
 			} else {
 				postData[key] = value;
 			}
-		});
+		}
 
 		if (!file) {
 			failure({ errorcode: -1, errordomain: "invalidParameter", errorinfo: "File is required for upload" });
@@ -316,19 +317,33 @@ var http = {
 
 		window.resolveLocalFileSystemURL(
 			window["cordova"].file.cacheDirectory,
-			/** @param {DirectoryEntry} dir **/ function (dir) {
+			/** @param {DirectoryEntry} dir **/
+			function (dir) {
 				dir.getFile(
 					Date.now() + "_" + file.name,
 					{ create: true, exclusive: false },
 					function (fileEntry) {
-						fileEntry.createWriter(function (fileWriter) {
-							fileWriter.write(file);
-							var fileUri = fileEntry.toURL();
+						fileEntry.createWriter(
+							function (fileWriter) {
+								fileWriter.onwriteend = function () {
+									let fileUri = fileEntry.nativeURL;
+									window["cordova"].exec(success, failure, "CordovaPluginSslSupport", "upload", [url, urlkey, fileUri, headers, postData]);
+								};
 
-							window["cordova"].exec(success, failure, "CordovaPluginSslSupport", "upload", [url, urlkey, fileUri, headers, postData]);
-						}, failure);
+								fileWriter.onerror = function (e) {
+									console.error("❌ Write failed: ", e);
+									failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
+								};
+								fileWriter.write(file);
+							},
+							function (e) {
+								failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
+							},
+						);
 					},
-					failure,
+					function (e) {
+						failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
+					},
 				);
 			},
 		);

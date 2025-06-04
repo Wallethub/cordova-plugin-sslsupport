@@ -685,7 +685,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
 
                 String finalDest = dest != null && dest.length() > 1 && !dest.equals("null") ? dest
                         : cordova.getContext().getFilesDir().toString() + "/"
-                        + URLUtil.guessFileName(request.url().toString(), null, null);
+                                + URLUtil.guessFileName(request.url().toString(), null, null);
 
                 useClient.newCall(request).enqueue(new Callback() {
                     @Override
@@ -885,7 +885,6 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 String value = headers.getString(key);
                 headersBuilder.set(key, value);
             }
-            headersBuilder.set("Content-Type", "multipart/form-data"); // set default content type
         } catch (Exception e) {
             // xx.toString();
             retObj.put("data", "");
@@ -910,17 +909,13 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 wildcarddomainname += "." + arr[i];
             }
         }
-        Log.i(TAG, "WILDCARDDomain: " + wildcarddomainname);
 
         if (domainlist.contains(domainname)) {
             securedomain = true;
-            Log.i(TAG, "ParsedDomain: " + domainname + " Type: Secure : " + urlkey);
         } else if (domainlist.contains(wildcarddomainname)) {
             securedomain = true;
-            Log.i(TAG, "ParsedWildCardDomain: " + domainname + " Type: Secure : " + urlkey);
         } else {
             securedomain = false;
-            Log.i(TAG, "ParsedDomain: " + domainname + " Type: Not Secure : " + urlkey);
         }
 
         if (securedomain) {
@@ -941,7 +936,13 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 }
 
                 String mimeType = URLConnection.guessContentTypeFromName(file.getName());
-                MediaType mediaType = MediaType.parse(mimeType != null ? mimeType : "application/octet-stream");
+
+                if (mimeType == null || mimeType.equals("text/comma-separated-values")) {
+                    mimeType = "text/csv";
+                }
+
+                MediaType mediaType = MediaType.parse(mimeType);
+
                 RequestBody fileBody = RequestBody.create(file, mediaType);
 
                 MultipartBody.Builder multipartBuilder = new MultipartBody.Builder()
@@ -951,10 +952,11 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                 if (finalQdata.has("file")) {
                     fileKey = finalQdata.getString("file");
                 }
+
                 Iterator<String> keys = finalQdata.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
-                    if (key == "file")
+                    if (key.equals("file"))
                         continue; // Skip the file key
                     String value = finalQdata.getString(key);
                     multipartBuilder.addFormDataPart(key, value);
@@ -964,9 +966,11 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
 
                 RequestBody requestBody = multipartBuilder.build();
 
+                Headers requesttHeaders = headersBuilder.build();
+
                 Request request = new Request.Builder()
                         .url(url)
-                        .headers(headersBuilder.build())
+                        .headers(requesttHeaders)
                         .post(requestBody)
                         .build();
 
