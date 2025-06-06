@@ -1,58 +1,47 @@
 //@ts-check
 //@ts-ignore
 /// <reference path="cordova.d.ts" />
-var exec = require("cordova/exec");
+const exec = require("cordova/exec");
 
-// Generate a unique string similar to php uniqid
-function uniqid(prefix, more_entropy) {
-	if (typeof prefix === "undefined") {
-		prefix = "";
-	}
-	var retId;
-	var formatSeed = function (seed, reqWidth) {
-		seed = parseInt(seed, 10).toString(16); // to hex str
+function uniqid(prefix = "", more_entropy) {
+	const formatSeed = (seed, reqWidth) => {
+		seed = parseInt(seed, 10).toString(16);
 		if (reqWidth < seed.length) {
-			// so long we split
 			return seed.slice(seed.length - reqWidth);
 		}
-		if (reqWidth > seed.length) {
-			// so short we pad
-			return Array(1 + (reqWidth - seed.length)).join("0") + seed;
-		}
-		return seed;
+		return seed.padStart(reqWidth, "0");
 	};
-	// BEGIN REDUNDANT
-	if (!this.php_js) {
-		this.php_js = {};
+
+	if (!globalThis.php_js) {
+		globalThis.php_js = {};
 	}
-	// END REDUNDANT
-	if (!this.php_js.uniqidSeed) {
-		// init seed with big random int
-		this.php_js.uniqidSeed = Math.floor(Math.random() * 0x75bcd15);
+	if (!globalThis.php_js.uniqidSeed) {
+		globalThis.php_js.uniqidSeed = Math.floor(Math.random() * 0x75bcd15);
 	}
-	this.php_js.uniqidSeed++;
-	retId = prefix; // start with prefix, add current milliseconds hex string
-	retId += formatSeed(parseInt((new Date().getTime() / 1000).toString(), 10), 8);
-	retId += formatSeed(this.php_js.uniqidSeed, 5); // add seed hex string
+	globalThis.php_js.uniqidSeed++;
+
+	let retId = prefix;
+	retId += formatSeed(Math.floor(Date.now() / 1000), 8);
+	retId += formatSeed(globalThis.php_js.uniqidSeed, 5);
+
 	if (more_entropy) {
-		// for more entropy we add a float lower to 10
-		retId += (Math.random() * 10).toFixed(8).toString();
+		retId += (Math.random() * 10).toFixed(8);
 	}
 	return retId;
 }
 
-var currentUrlId;
+let currentUrlId;
 
-function validateParams(params) {
-	var isfail = 0,
-		failedparam;
-	if (typeof params.url != "string") {
+const validateParams = params => {
+	let isfail = 0;
+	let failedparam;
+	if (typeof params.url !== "string") {
 		isfail = 1;
 		failedparam = params.url;
-	} else if (typeof params.data != "object") {
+	} else if (typeof params.data !== "object") {
 		isfail = 1;
 		failedparam = params.data;
-	} else if (typeof params.headers != "object") {
+	} else if (typeof params.headers !== "object") {
 		isfail = 1;
 		failedparam = params.headers;
 	}
@@ -61,56 +50,43 @@ function validateParams(params) {
 		failed: isfail,
 		details: isfail ? { errorcode: -1, errordomain: "invalidParameter", errorinfo: failedparam } : null,
 	};
-}
+};
 
-function validatePostRequest(params, failure) {
-	var url = "";
-	var data = {};
-	var headers = {};
-	var urlkey = uniqid();
+const validatePostRequest = (params, failure) => {
+	let url = params.url || "";
+	let data = params.data || {};
+	let headers = params.headers || {};
+	let urlkey = params.id || uniqid();
 
-	if (params.hasOwnProperty("url")) {
-		url = params.url;
-	}
-	if (params.hasOwnProperty("data")) {
-		data = params.data || {};
-	}
-	if (params.hasOwnProperty("headers")) {
-		headers = params.headers || {};
-	}
-	if (params.id) {
-		urlkey = params.id;
-	}
-
-	var is_json = false;
-	if (headers["Content-Type"] && headers["Content-Type"] == "application/json" && typeof data == "string") {
-		is_json = true;
+	let is_json = headers["Content-Type"] === "application/json" && typeof data === "string";
+	if (is_json) {
 		try {
 			data = JSON.parse(data);
-		} catch (e) {}
+		} catch {}
 	}
-	if (!is_json && typeof data == "object") is_json = true;
-	// do not validate a form post data
-	var validate = validateParams({ url: url, headers: headers, data: is_json ? data : {} });
-	if (validate.failed) {
-		failure(validate.details);
+	if (!is_json && typeof data === "object") is_json = true;
+
+	const validation = validateParams({ url, headers, data: is_json ? data : {} });
+	if (validation.failed) {
+		failure(validation.details);
 		return null;
 	}
 
-	return { key: urlkey, data: data, headers: headers, url: url };
-}
+	return { key: urlkey, data, headers, url };
+};
 
-var http = {
+const http = {
 	sslPinning: true,
 	allCertificates: false,
 	domainValidation: true,
-	enableSSLPinning: function (enable, success, failure) {
+
+	enableSSLPinning(enable, success, failure) {
 		return exec(
-			function () {
+			() => {
 				if (success) success();
 				http.sslPinning = enable;
 			},
-			function () {
+			() => {
 				if (failure) failure();
 			},
 			"CordovaPluginSslSupport",
@@ -118,13 +94,14 @@ var http = {
 			[enable],
 		);
 	},
-	acceptAllCerts: function (allow, success, failure) {
+
+	acceptAllCerts(allow, success, failure) {
 		return exec(
-			function () {
+			() => {
 				if (success) success();
 				http.allCertificates = allow;
 			},
-			function () {
+			() => {
 				if (failure) failure();
 			},
 			"CordovaPluginSslSupport",
@@ -132,13 +109,14 @@ var http = {
 			[allow],
 		);
 	},
-	validateDomainName: function (validate, success, failure) {
+
+	validateDomainName(validate, success, failure) {
 		return exec(
-			function () {
+			() => {
 				if (success) success();
 				http.domainValidation = validate;
 			},
-			function () {
+			() => {
 				if (failure) failure();
 			},
 			"CordovaPluginSslSupport",
@@ -146,165 +124,86 @@ var http = {
 			[validate],
 		);
 	},
-	getCookies: function (params, success, failure) {
-		var domain = typeof params == "string" ? params || "all" : "all";
+
+	getCookies(params, success, failure) {
+		const domain = typeof params === "string" ? params : "all";
 		return exec(success, failure, "CordovaPluginSslSupport", "getCookies", [domain]);
 	},
-	post: function (params, success, failure) {
-		var options = validatePostRequest(params, failure);
+
+	post(params, success, failure) {
+		const options = validatePostRequest(params, failure);
 		if (!options) return;
-
 		currentUrlId = options.key;
-
-		return exec(
-			function (response) {
-				if (success) success(response);
-			},
-			function (request) {
-				if (failure) failure(request);
-			},
-			"CordovaPluginSslSupport",
-			"post",
-			[options.url, options.data, options.headers, options.key],
-		);
+		return exec(success, failure, "CordovaPluginSslSupport", "post", [options.url, options.data, options.headers, options.key]);
 	},
-	put: function (params, success, failure) {
-		var options = validatePostRequest(params, failure);
+
+	put(params, success, failure) {
+		const options = validatePostRequest(params, failure);
 		if (!options) return;
-
 		currentUrlId = options.key;
-
-		return exec(
-			function (response) {
-				if (success) success(response);
-			},
-			function (request) {
-				if (failure) failure(request);
-			},
-			"CordovaPluginSslSupport",
-			"put",
-			[options.url, options.data, options.headers, options.key],
-		);
+		return exec(success, failure, "CordovaPluginSslSupport", "put", [options.url, options.data, options.headers, options.key]);
 	},
-	delete: function (params, success, failure) {
-		var options = validatePostRequest(params, failure);
+
+	delete(params, success, failure) {
+		const options = validatePostRequest(params, failure);
 		if (!options) return;
-
 		currentUrlId = options.key;
-
-		return exec(
-			function (response) {
-				if (success) success(response);
-			},
-			function (request) {
-				if (failure) failure(request);
-			},
-			"CordovaPluginSslSupport",
-			"delete",
-			[options.url, options.data, options.headers, options.key],
-		);
+		return exec(success, failure, "CordovaPluginSslSupport", "delete", [options.url, options.data, options.headers, options.key]);
 	},
-	get: function (params, success, failure) {
-		var url = "";
-		var data = {};
-		var headers = {};
-		var urlkey = uniqid(),
-			failedparam;
 
-		if (params.hasOwnProperty("url")) {
-			url = params.url;
-		}
-		if (params.hasOwnProperty("data")) {
-			data = params.data || {};
-		}
-		if (params.hasOwnProperty("headers")) {
-			headers = params.headers || {};
-		}
-		if (params.id) {
-			urlkey = params.id;
-		}
+	get(params, success, failure) {
+		let url = params.url || "";
+		let data = params.data || {};
+		let headers = params.headers || {};
+		let urlkey = params.id || uniqid();
 
-		var validate = validateParams({ url: url, headers: headers, data: data });
-		if (validate.failed) {
-			failure(validate.details);
+		const validation = validateParams({ url, headers, data });
+		if (validation.failed) {
+			failure(validation.details);
 			return;
 		}
 
 		currentUrlId = urlkey;
-
-		return exec(
-			function (response) {
-				if (success) success(response);
-			},
-			function (request) {
-				if (failure) failure(request);
-			},
-			"CordovaPluginSslSupport",
-			"get",
-			[url, data, headers, urlkey],
-		);
+		return exec(success, failure, "CordovaPluginSslSupport", "get", [url, data, headers, urlkey]);
 	},
 
-	download: function (params, success, failure) {
-		var urlkey = uniqid(),
-			url = "",
-			headers = {};
-
-		if (params.id) urlkey = params.id;
-		if (params.url) url = params.url;
-		if (params.headers) headers = params.headers;
-
-		var dest = null;
-		if (params.dest) dest = params.dest;
+	download(params, success, failure) {
+		const urlkey = params.id || uniqid();
+		const url = params.url || "";
+		const headers = params.headers || {};
+		const dest = params.dest || null;
 
 		currentUrlId = urlkey;
 
-		exec(
-			function (response) {
-				if (success) success(response);
-			},
-			function (request) {
-				if (failure) failure(request);
-			},
-			"CordovaPluginSslSupport",
-			"download",
-			[url, dest, headers, urlkey],
-		);
+		exec(success, failure, "CordovaPluginSslSupport", "download", [url, dest, headers, urlkey]);
 	},
 
-	upload: function (params, success, failure) {
-		let url = "";
-		/** @type {FormData} */
-		let data;
-		let headers = {};
-		let urlkey = uniqid();
+	upload(params, success, failure) {
+		const url = params.url || "";
+		const data = params.data;
+		const headers = params.headers || {};
+		const urlkey = params.id || uniqid();
 
-		if (params.hasOwnProperty("url")) {
-			url = params.url;
-		}
-		if (!params.hasOwnProperty("data") || !(params.data instanceof FormData)) {
+		if (!(data instanceof FormData)) {
 			failure({ errorcode: -1, errordomain: "invalidParameter", errorinfo: "data must be an instance of FormData" });
 			return;
 		}
 
-		data = params.data;
-
-		if (params.hasOwnProperty("headers")) {
-			headers = params.headers || {};
-		}
-		if (params.id) {
-			urlkey = params.id;
-		}
-
-		let postData = {};
-
+		const postData = {};
 		/** @type {File} */
-		let file;
-		for (const pair of data.entries()) {
-			const [key, value] = pair;
-			if (typeof value === "object" && value?.constructor?.name === "File") {
+		let file = null;
+		let filename = "";
+
+		for (const [key, value] of data.entries()) {
+			if (value?.constructor?.name === "File") {
+				//@ts-ignore
 				file = value;
 				postData["file"] = key;
+				filename = file.name || "";
+
+				if (file["localURL"]) {
+					filename = file["localURL"].split("/").pop();
+				}
 			} else {
 				postData[key] = value;
 			}
@@ -315,52 +214,46 @@ var http = {
 			return;
 		}
 
-		window.resolveLocalFileSystemURL(
-			window["cordova"].file.cacheDirectory,
-			/** @param {DirectoryEntry} dir **/
-			function (dir) {
-				dir.getFile(
-					Date.now() + "_" + file.name,
-					{ create: true, exclusive: false },
-					function (fileEntry) {
-						fileEntry.createWriter(
-							function (fileWriter) {
-								fileWriter.onwriteend = function () {
-									let fileUri = fileEntry.nativeURL;
-									window["cordova"].exec(success, failure, "CordovaPluginSslSupport", "upload", [url, urlkey, fileUri, headers, postData]);
-								};
-
-								fileWriter.onerror = function (e) {
-									failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
-								};
-								fileWriter.write(file);
-							},
-							function (e) {
+		window["resolveLocalFileSystemURL"](window["cordova"]["file"].cacheDirectory, dir => {
+			dir.getFile(
+				`${Date.now()}_${filename}`,
+				{ create: true, exclusive: false },
+				fileEntry => {
+					fileEntry.createWriter(
+						fileWriter => {
+							fileWriter.onwriteend = () => {
+								const fileUri = fileEntry.nativeURL;
+								exec(success, failure, "CordovaPluginSslSupport", "upload", [url, urlkey, fileUri, headers, postData]);
+							};
+							fileWriter.onerror = e => {
 								failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
-							},
-						);
-					},
-					function (e) {
-						failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
-					},
-				);
-			},
-		);
+							};
+							fileWriter.write(file);
+						},
+						e => {
+							failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
+						},
+					);
+				},
+				e => {
+					failure({ errorcode: -1, errordomain: "invalidFile", errorinfo: e.message });
+				},
+			);
+		});
 	},
-	cancelRequest: function (urlkey, success, failure) {
-		if (!urlkey) {
-			urlkey = currentUrlId;
-		}
+
+	cancelRequest(urlkey, success, failure) {
+		urlkey ||= currentUrlId;
 		if (!urlkey) {
 			if (success) success();
 			return;
 		}
 
 		return exec(
-			function () {
+			() => {
 				if (success) success();
 			},
-			function () {
+			() => {
 				if (failure) failure();
 			},
 			"CordovaPluginSslSupport",
@@ -371,13 +264,12 @@ var http = {
 };
 
 exec(
-	function () {},
-	function () {},
+	() => {},
+	() => {},
 	"CordovaPluginSslSupport",
 	"setUserAgent",
 	[navigator.userAgent],
 );
 
 module.exports = http;
-
 window["sslHTTP"] = http;
