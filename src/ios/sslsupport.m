@@ -409,67 +409,53 @@
 
 
 - (void)getCookies:(CDVInvokedUrlCommand*)command {
-    //    NSHTTPCookieStorage *cookies = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-    NSString *domainName = @"all";
-    if ([command.arguments count] > 0) {
-        if ([[command.arguments objectAtIndex:0] isEqual:[NSNull null]]){
-            NSLog(@"myString IS NULL!");
-        }
-        else{
-            if ([[command.arguments objectAtIndex:0] isEqualToString:@""]) {
-                NSLog(@"myString IS empty!");
-            } else {
-                NSLog(@"myString IS NOT empty, it is: %@", [command.arguments objectAtIndex:0]);
+    [self.commandDelegate runInBackground:^{
+        NSString *domainName = @"all";
+        if ([command.arguments count] > 0) {
+            if (![[command.arguments objectAtIndex:0] isEqual:[NSNull null]] &&
+                ![[command.arguments objectAtIndex:0] isEqualToString:@""]) {
                 domainName = [command.arguments objectAtIndex:0];
             }
-            //domainName = [command.arguments objectAtIndex:0];
         }
-    }
-    //NSNumber *addthiscookie = [NSNumber numberWithInt:1];
-    Boolean addthiscookie = true;
-    
-    NSMutableDictionary * responseCookies = [NSMutableDictionary dictionary];
-    NSHTTPCookie *cookie;
-    NSHTTPCookieStorage *cookieJar = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-    for (cookie in [cookieJar cookies]) {
-        
-        if([domainName isEqualToString:@"all"])
-        {
-            //addthiscookie = [NSNumber numberWithInt:1];
-            addthiscookie = true;
-        } else {
-            if([[cookie domain] rangeOfString:domainName].location != NSNotFound) {
-                NSLog(@"cookie has the desired domain:%@", cookie);
-               addthiscookie = true;
-            } else {
-                addthiscookie = false;
+
+        NSMutableDictionary * responseCookies = [NSMutableDictionary dictionary];
+        NSHTTPCookieStorage *cookieJar = [NSHTTPCookieStorage sharedHTTPCookieStorage];
+
+        for (NSHTTPCookie *cookie in [cookieJar cookies]) {
+            BOOL addthiscookie = NO;
+
+            if ([domainName isEqualToString:@"all"] ||
+                [[cookie domain] rangeOfString:domainName].location != NSNotFound) {
+                addthiscookie = YES;
+            }
+
+            if (cookie.isHTTPOnly) {
+                addthiscookie = NO;
+            }
+
+            NSDate *currentDate = [NSDate date];
+            if (!cookie.sessionOnly && cookie.expiresDate &&
+                [cookie.expiresDate compare:currentDate] == NSOrderedAscending) {
+                addthiscookie = NO;
+            }
+
+            if (addthiscookie) {
+                NSMutableDictionary *cookieProperties = [NSMutableDictionary dictionary];
+                cookieProperties[[NSHTTPCookieName lowercaseString]] = cookie.name;
+                cookieProperties[[NSHTTPCookieValue lowercaseString]] = cookie.value;
+                cookieProperties[[NSHTTPCookieDomain lowercaseString]] = cookie.domain;
+                cookieProperties[[NSHTTPCookiePath lowercaseString]] = cookie.path;
+                cookieProperties[[NSHTTPCookieVersion lowercaseString]] = @(cookie.version);
+
+                responseCookies[cookie.name] = cookieProperties;
             }
         }
-        if(cookie.isHTTPOnly)  { addthiscookie = false; }
 
-        NSDate* currentDate = [NSDate date];
-
-        if(!cookie.sessionOnly && cookie.expiresDate && [cookie.expiresDate compare:currentDate] == NSOrderedAscending) {
-            addthiscookie = false;
-        }
-
-        //NSLog(@"%@", cookie);
-        if(addthiscookie) {
-            NSMutableDictionary *cookieProperties = [NSMutableDictionary dictionary];
-            [cookieProperties setObject:cookie.name forKey:[NSHTTPCookieName lowercaseString]];
-            [cookieProperties setObject:cookie.value forKey:[NSHTTPCookieValue lowercaseString]];
-            [cookieProperties setObject:cookie.domain forKey:[NSHTTPCookieDomain lowercaseString]];
-            [cookieProperties setObject:cookie.path forKey:[NSHTTPCookiePath lowercaseString]];
-            [cookieProperties setObject:[NSNumber numberWithLong:cookie.version] forKey:[NSHTTPCookieVersion lowercaseString]];
-            [responseCookies setObject:cookieProperties forKey:cookie.name];
-        }
-    }
-    // cookie code ends
-    NSLog(@"%@", responseCookies);
-    
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:responseCookies];
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:responseCookies];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }];
 }
+
 
 - (NSURLSessionDataTask *)sendRequest:(AFHTTPSessionManager *)manager method:(NSString *)method url:(NSString *)url parameters:(NSDictionary *)parameters success:(void (^)(NSURLSessionTask *operation, id responseObject))success failure:(void (^)(NSURLSessionTask *operation, NSError *error))failure {
 
