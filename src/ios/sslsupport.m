@@ -2,6 +2,7 @@
 #import "sslsupport.h"
 #import <Cordova/CDV.h>
 #import "TextResponseSerializer.h"
+#import <CoreServices/CoreServices.h>
 
 @interface CordovaPluginSslSupport ()
 - (void)setRequestHeaders:(NSDictionary*)headers forManager:(AFHTTPSessionManager*)manager;
@@ -762,6 +763,169 @@
     [taskDictionary setObject:downloadTask forKey:URLkey];
     
     [downloadTask resume];
+}
+
+- (void) upload:(CDVInvokedUrlCommand*)command {
+    NSString *url = [command.arguments objectAtIndex:0];
+    NSString *urlkey = [command.arguments objectAtIndex:1];
+    NSString *fileUri = [command.arguments objectAtIndex:2];
+    NSDictionary *headers = [command.arguments objectAtIndex:3];
+    NSDictionary *qdata = [command.arguments objectAtIndex:4]; // Fields + optional custom "file" key
+
+    AFHTTPSessionManager *manager = [self getManager:url];
+    [self setRequestHeaders:headers forManager:manager];
+
+    CordovaPluginSslSupport* __weak weakSelf = self;
+
+    // Prepare file URL
+    NSURL *fileURL = [NSURL URLWithString:fileUri];
+    if (![fileURL isFileURL]) {
+        fileURL = [NSURL fileURLWithPath:[fileUri stringByReplacingOccurrencesOfString:@"file://" withString:@""]];
+    }
+
+    // Resolve actual file path
+    NSString *filePath = [fileURL path];
+    NSString *fileName = [filePath lastPathComponent];
+    NSString *mimeType = [self guessMimeTypeFromFileName:fileName];
+    
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    // Check if file exists and is readable
+    if (![fileManager fileExistsAtPath:filePath] || ![fileManager isReadableFileAtPath:filePath]) {
+        NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+
+        // Simulate NSError-like info
+        NSString *domain = @"NSFileErrorDomain";
+        NSInteger errorCode = -10000;
+
+        [dictionary setObject:domain forKey:@"errordomain"];
+        [dictionary setObject:[NSNumber numberWithLong:errorCode] forKey:@"errorcode"];
+        [dictionary setObject:[NSNumber numberWithInt:0] forKey:@"httperrorcode"];
+        [dictionary setObject:@"" forKey:@"data"];
+        [dictionary setObject:@{} forKey:@"headers"];
+        [dictionary setObject:@"File not found or unreadable" forKey:@"errorinfo"];
+        [dictionary setObject:[self getErrStr:errorCode] forKey:@"errordomain"]; // or a custom string like @"FileError"
+
+        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                                    messageAsDictionary:dictionary];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        return;
+    }
+
+    // Determine field name (key) for file upload
+    NSString *fileKey = @"file";
+    if ([qdata objectForKey:@"file"] && [[qdata objectForKey:@"file"] isKindOfClass:[NSString class]]) {
+        fileKey = [qdata objectForKey:@"file"];
+    }
+
+    // Cancel previous task if needed
+    if ([taskDictionary objectForKey:urlkey]) {
+        [[taskDictionary objectForKey:urlkey] cancel];
+        [taskDictionary removeObjectForKey:urlkey];
+    }
+    
+    // Build multipart request
+    NSError *error = nil;
+    NSMutableURLRequest *request = [manager.requestSerializer multipartFormRequestWithMethod:@"POST"
+                                                                                  URLString:url
+                                                                                 parameters:nil
+                                                                  constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
+        // Add all qdata fields except the file key
+        for (NSString *key in qdata) {
+            if ([key isEqualToString:@"file"]) continue;
+            id value = [qdata objectForKey:key];
+            if ([value isKindOfClass:[NSString class]]) {
+                NSData *valueData = [(NSString *)value dataUsingEncoding:NSUTF8StringEncoding];
+                [formData appendPartWithFormData:valueData name:key];
+            }
+        }
+        NSError *fileError = nil;
+        [formData appendPartWithFileURL:fileURL
+                                   name:fileKey
+                               fileName:fileName
+                               mimeType:mimeType
+                                  error:&fileError];
+    } error:&error];
+    
+    NSURLSessionUploadTask *uploadTask = [manager
+        uploadTaskWithStreamedRequest:request
+        progress:^(NSProgress * _Nonnull uploadProgress) {
+            // Optionally send progress back to JavaScript via plugin callback
+            NSLog(@"Upload progress: %f", uploadProgress.fractionCompleted);
+        }
+        completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
+            if (error) {
+                // Prepare error dictionary like you did for file errors
+                NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+                [dictionary setObject:error.domain ?: @"" forKey:@"errordomain"];
+                [dictionary setObject:@(error.code) forKey:@"errorcode"];
+                [dictionary setObject:@( [(NSHTTPURLResponse *)response statusCode] ) forKey:@"httperrorcode"];
+                [dictionary setObject:@"" forKey:@"data"];
+                if (error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey]) {
+                    NSString *errorResponse = [[NSString alloc] initWithData:error.userInfo[AFNetworkingOperationFailingURLResponseDataErrorKey] encoding:NSUTF8StringEncoding];
+                    [dictionary setObject:errorResponse forKey:@"data"];
+                }
+                [dictionary setObject:error.localizedDescription forKey:@"errorinfo"];
+                [dictionary setObject:[self getErrStr:error.code] forKey:@"errordomain"];
+
+                CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:dictionary];
+                [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            } else {
+                // SUCCESS path
+                NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+                
+                NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:[httpResponse allHeaderFields]
+                                                                                   forURL:[httpResponse URL]];
+
+                for (NSHTTPCookie *cookie in cookies) {
+                    [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookie:cookie];
+                }
+
+                NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+                [dictionary setObject:[NSNumber numberWithLong:httpResponse.statusCode] forKey:@"status"];
+
+                if (responseObject != nil) {
+                    [dictionary setObject:responseObject forKey:@"data"];
+                }
+
+                [dictionary setObject:[httpResponse allHeaderFields] forKey:@"headers"];
+
+                CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                                      messageAsDictionary:dictionary];
+                [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            }
+            // Remove task from dictionary after completion
+            [taskDictionary removeObjectForKey:urlkey];
+        }];
+
+    // Store task so it can be cancelled if needed
+    [taskDictionary setObject:uploadTask forKey:urlkey];
+
+    // Start the upload task
+    [uploadTask resume];
+
+}
+
+- (NSString *)guessMimeTypeFromFileName:(NSString *)fileName {
+    NSString *extension = [fileName pathExtension];
+    if (extension.length == 0) {
+        return @"application/octet-stream";
+    }
+
+    CFStringRef UTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, (__bridge CFStringRef)extension, NULL);
+    if (!UTI) {
+        return @"application/octet-stream";
+    }
+
+    CFStringRef mimeTypeCF = UTTypeCopyPreferredTagWithClass(UTI, kUTTagClassMIMEType);
+    CFRelease(UTI);
+
+    if (!mimeTypeCF) {
+        return @"application/octet-stream";
+    }
+
+    NSString *mimeType = (__bridge_transfer NSString *)mimeTypeCF; // Transfers ownership to ARC
+    return mimeType;
 }
 
 

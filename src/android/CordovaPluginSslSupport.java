@@ -924,6 +924,8 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
             client = this.httpclient;
         }
 
+        OkHttpUtils.cancelCallWithTag(client, urlkey); // cancel any previous call with the same tag
+
         final JSONObject finalQdata = qdata;
         cordova.getThreadPool().execute(() -> {
             try {
@@ -972,6 +974,7 @@ public class CordovaPluginSslSupport extends CordovaPlugin {
                         .url(url)
                         .headers(requesttHeaders)
                         .post(requestBody)
+                        .tag(urlkey)
                         .build();
 
                 Response response = client.newCall(request).execute();
